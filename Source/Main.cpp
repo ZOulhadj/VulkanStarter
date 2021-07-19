@@ -72,6 +72,15 @@ VkRenderPass renderPass;
 VkPipelineLayout pipelineLayout;
 VkPipeline graphicsPipeline;
 
+std::vector<VkFramebuffer> swapChainFramebuffers;
+
+VkCommandPool commandPool;
+std::vector<VkCommandBuffer> commandBuffers;
+
+
+VkSemaphore imageAvailableSemaphore;
+VkSemaphore renderFinishedSemaphore;
+
 struct SwapChainSupportDetails {
     VkSurfaceCapabilitiesKHR capabilities;
     std::vector<VkSurfaceFormatKHR> formats;
@@ -516,12 +525,25 @@ int main()
     renderPassCreateInfo.pAttachments = &attachmentDescription;
     renderPassCreateInfo.subpassCount = 1;
     renderPassCreateInfo.pSubpasses = &subpass;
+
+    VkSubpassDependency dependency = {};
+    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+    dependency.dstSubpass = 0;
+    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.srcAccessMask = 0;
+    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    
+    renderPassCreateInfo.dependencyCount = 1;
+    renderPassCreateInfo.pDependencies = &dependency;
     
     if (vkCreateRenderPass(device, &renderPassCreateInfo, nullptr, &renderPass) != VK_SUCCESS)
     {
         std::cout << "Failed to create render pass\n";
         return 0;
     }
+    
+
     
     // initialisation of graphics pipeline
     auto vertexShaderCode = LoadShader("../../vert.spv");
@@ -661,12 +683,158 @@ int main()
     vkDestroyShaderModule(device, vertexShaderModule, nullptr);
     vkDestroyShaderModule(device, fragmentShaderModule, nullptr);
     
+    
+    swapChainFramebuffers.resize(swapChainImageViews.size());
+    
+    for (std::size_t i = 0; i < swapChainImageViews.size(); ++i)
+    {
+        std::array<VkImageView, 1> attachments = { swapChainImageViews[i] };
+        
+        VkFramebufferCreateInfo framebufferCreateInfo = {};
+        framebufferCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        framebufferCreateInfo.renderPass = renderPass;
+        framebufferCreateInfo.attachmentCount = attachments.size();
+        framebufferCreateInfo.pAttachments = attachments.data();
+        framebufferCreateInfo.width = swapChainExtent.width;
+        framebufferCreateInfo.height = swapChainExtent.height;
+        framebufferCreateInfo.layers = 1;
+        
+        if (vkCreateFramebuffer(device, &framebufferCreateInfo, nullptr, &swapChainFramebuffers[i]) != VK_SUCCESS)
+        {
+            std::cout << "Failed to create Vulkan framebuffer\n";
+            return 0;
+        }
+    }
+    
+    
+    QueueFamilyIndices queueIndicesCommand = CheckQueueFamilies(physicalDevice);
+    
+    VkCommandPoolCreateInfo commandPoolCreateInfo = {};
+    commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    commandPoolCreateInfo.queueFamilyIndex = queueIndicesCommand.graphicsFamily.value();
+    commandPoolCreateInfo.flags = 0; // optional
+    
+    if (vkCreateCommandPool(device, &commandPoolCreateInfo, nullptr, &commandPool) != VK_SUCCESS)
+    {
+        std::cout << "Failed to created Vulkan command pool\n";
+        return 0;
+    }
+    
+    commandBuffers.resize(swapChainFramebuffers.size());
+    
+    VkCommandBufferAllocateInfo cbAllocateInfo = {};
+    cbAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    cbAllocateInfo.commandPool = commandPool;
+    cbAllocateInfo.level =  VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    cbAllocateInfo.commandBufferCount = static_cast<uint32_t>(commandBuffers.size());
+    
+    if (vkAllocateCommandBuffers(device, &cbAllocateInfo, commandBuffers.data()) != VK_SUCCESS)
+    {
+        std::cout << "Failed to allocate Vulkan command buffers\n";
+        return 0;
+    }
+    
+    for (std::size_t i = 0; i < commandBuffers.size(); ++i)
+    {
+        VkCommandBufferBeginInfo cbBeginInfo = {};
+        cbBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        cbBeginInfo.flags = 0; // optional
+        cbBeginInfo.pInheritanceInfo = nullptr; // optional
+        
+        if (vkBeginCommandBuffer(commandBuffers[i], &cbBeginInfo) != VK_SUCCESS)
+        {
+            std::cout << "Failed to begin recording Vulkan command buffers\n";
+            return 0;
+        }
+        
+        VkRenderPassBeginInfo renderPassBeginInfo = {};
+        renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        renderPassBeginInfo.renderPass = renderPass;
+        renderPassBeginInfo.framebuffer = swapChainFramebuffers[i];
+        renderPassBeginInfo.renderArea.offset = { 0, 0 };
+        renderPassBeginInfo.renderArea.extent = swapChainExtent;
+        
+        VkClearValue clearColor = { 0.5f, 0.2f, 0.6f, 1.0f };
+        renderPassBeginInfo.clearValueCount = 1;
+        renderPassBeginInfo.pClearValues = &clearColor;
+        
+        vkCmdBeginRenderPass(commandBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+        
+        vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+        
+        vkCmdDraw(commandBuffers[i], 3, 1, 0, 0);
+        
+        vkCmdEndRenderPass(commandBuffers[i]);
+        
+        if (vkEndCommandBuffer(commandBuffers[i]) != VK_SUCCESS)
+        {
+            std::cout << "Failed to record Vulkan command buffer\n";
+            return 0;
+        }
+        
+    }
+    
+    VkSemaphoreCreateInfo semaphoreCreateInfo = {};
+    semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+    
+    if (vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &imageAvailableSemaphore) != VK_SUCCESS ||
+        vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &renderFinishedSemaphore) != VK_SUCCESS)
+    {
+        std::cout << "Failed to create Vulkan semaphores\n";
+        return 0;
+    }
+    
     while (!glfwWindowShouldClose(window))
     {
+        uint32_t imageIndex;
+        vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+        
+        VkSubmitInfo submitInfo = {};
+        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        
+        std::array<VkSemaphore, 1> waitSemaphores = { imageAvailableSemaphore };
+        std::array<VkPipelineStageFlags, 1> waitStages = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+        submitInfo.waitSemaphoreCount = waitSemaphores.size();
+        submitInfo.pWaitSemaphores = waitSemaphores.data();
+        submitInfo.pWaitDstStageMask = waitStages.data();
+        submitInfo.commandBufferCount = 1;
+        submitInfo.pCommandBuffers = &commandBuffers[imageIndex];
+        
+        std::array<VkSemaphore, 1> signalSemaphores = { renderFinishedSemaphore };
+        submitInfo.signalSemaphoreCount = signalSemaphores.size();
+        submitInfo.pSignalSemaphores = signalSemaphores.data();
+        
+        if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS)
+        {
+            std::cout << "Failed to submit Vulkan draw command buffer\n";
+            return 0;
+        }
+        
+        VkPresentInfoKHR presentInfo = {};
+        presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+        presentInfo.waitSemaphoreCount = waitSemaphores.size();
+        presentInfo.pWaitSemaphores = waitSemaphores.data();
+        
+        std::array<VkSwapchainKHR, 1> swapChains = { swapChain };
+        presentInfo.swapchainCount = swapChains.size();
+        presentInfo.pSwapchains = swapChains.data();
+        presentInfo.pImageIndices = &imageIndex;
+        presentInfo.pResults = nullptr;
+        
+        vkQueuePresentKHR(presentQueue, &presentInfo);
+        
         glfwPollEvents();
     }
     
     // clean up
+    vkDestroySemaphore(device, renderFinishedSemaphore, nullptr);
+    vkDestroySemaphore(device, imageAvailableSemaphore, nullptr);
+    
+    vkDestroyCommandPool(device, commandPool, nullptr);
+    
+    for (auto framebuffer : swapChainFramebuffers)
+        vkDestroyFramebuffer(device, framebuffer, nullptr);
+    
     for (auto imageView : swapChainImageViews)
         vkDestroyImageView(device, imageView, nullptr);
 
