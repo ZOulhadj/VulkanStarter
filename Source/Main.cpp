@@ -299,7 +299,7 @@ int main()
     }
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan window", nullptr, nullptr);
+    window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan Starter", nullptr, nullptr);
     if (!window)
     {
         std::cout << "Failed to create GLFW window\n";
@@ -769,7 +769,7 @@ int main()
         renderPassBeginInfo.renderArea.offset = { 0, 0 };
         renderPassBeginInfo.renderArea.extent = swapChainExtent;
         
-        VkClearValue clearColor = { 0.5f, 0.8f, 0.6f, 1.0f };
+        VkClearValue clearColor = { 0.0f, 0.0f, 0.0f, 1.0f };
         renderPassBeginInfo.clearValueCount = 1;
         renderPassBeginInfo.pClearValues = &clearColor;
         
