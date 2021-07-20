@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.20.5)
+cmake_minimum_required(VERSION 3.20.0)
 project(VulkanStarter)
 
 set(CMAKE_CXX_STANDARD 17)
