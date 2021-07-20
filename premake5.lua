@@ -9,7 +9,7 @@ workspace "VulkanStarter"
         "Release"
     }
 
-	filter { "configurations:Debug" }
+    filter { "configurations:Debug" }
         symbols "On"
         defines { "_DEBUG" }
         debugdir "."

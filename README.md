@@ -11,10 +11,10 @@ the code and increase readability.
 * Your system must also be compatible with Vulkan
 
 ### Dependencies
-It's assumed that you understand how to compile the GLFW library for your specific platform if not then refer to GLFW's documentation. Then create a folder called ```Dependencies``` within the root folder and place the GLFW library inside that folder. To know exactly the paths required please take a look the the ```premake5.lua``` file which has all the project configuration settings.
+It's assumed that you understand how to compile the GLFW library for your specific platform. If not, then refer to GLFW's documentation. Create a folder called ```Dependencies``` within the root folder and place the GLFW library inside that folder. To know exactly the paths required please take a look the the ```premake5.lua``` file which has all the project configuration settings.
 
 *Important note*: Once the Vulkan SDK is installed on your system, make sure to 
-edit the paths to corrct Vulkan SDK directory within the ```premake5.lua``` configuration file and the ```CompileShaders.sh``` file.
+edit the paths to the correct Vulkan SDK directory within the ```premake5.lua``` configuration file and the ```CompileShaders.sh``` file.
 
 ## Building
 
