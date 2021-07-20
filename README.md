@@ -21,11 +21,12 @@ This will ensure that you clone both the actual repository and all dependencies 
 
 ## Building
 
-Before building, your system needs to have the VulkanSDK installed. Once installed and the SDK, ensure that the paths
-with the ``` CompileShader.sh ``` file point to the correct SDK directory. This will ensure that the shaders can be compiled.
+Before building, your system needs to have the VulkanSDK installed. Once installed it's installed, inspect the ``` CompileShader.sh ``` file
+and ensure that the paths within the file point to the correct SDK directory. This will allow the shader compiler program to be found and used
+to convert the shader files from text to SPIR-V (More details regarding this are mentioned below).
 
 After the SDK and paths to the SDK have been set up, you can compile the project. Although CMake is used to create makefiles and
-project file, you have to ensure that you have the correct programs installed. For example, if generating Visual Studio solution
+project files, you have to ensure that you have the correct programs installed. For example, if generating Visual Studio solution
 files on Windows then this does not apply. However, if creating a makefile then g++ is required and thus, needs to be installed
 and set in the system path.
 
