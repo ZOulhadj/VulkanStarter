@@ -1,6 +1,5 @@
-
 # location to the SPIR-V compiler within the Vulkan SDK
-glslCompilerLocation="../../VulkanSDK/1.2.182.0/macOS/bin/glslc"
+glslCompilerLocation="$HOME/Projects/Vulkan/1.2.182.0/x86_64/bin/glslc"
 
 # the text shader source file locations
 vertexShaderSourceLocation="Source/Shaders/Triangle.vert"
