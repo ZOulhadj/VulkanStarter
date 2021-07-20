@@ -13,14 +13,23 @@ the code and increase readability.
 ### Dependencies
 
 As mentioned above, GLFW is used for the cross-platform windowing. This example project includes the GLFW repository as a git submodule.
-When cloning the repository the full command is: ``` git clone --recurse-submodules git@github.com:ZOulhadj/VulkanStarter.git ```. This
-will ensure that you clone both the actual repository and all dependencies which this case is only GLFW.
+When cloning the repository the full command is:
+
+``` git clone --recurse-submodules git@github.com:ZOulhadj/VulkanStarter.git ```.
+
+This will ensure that you clone both the actual repository and all dependencies which this case is only GLFW.
 
 ## Building
 
-For compiling this example project, CMake is used to generate project files depending on your operating system and generator choice.
+Before building, your system needs to have the VulkanSDK installed. Once installed and the SDK, ensure that the paths
+with the ``` CompileShader.sh ``` file point to the correct SDK directory. This will ensure that the shaders can be compiled.
 
-Create a folder called ``` Build ``` within the root directory. Then from within the ``` Build ``` folder, call ``` cmake ../ ```.
+After the SDK and paths to the SDK have been set up, you can compile the project. Although CMake is used to create makefiles and
+project file, you have to ensure that you have the correct programs installed. For example, if generating Visual Studio solution
+files on Windows then this does not apply. However, if creating a makefile then g++ is required and thus, needs to be installed
+and set in the system path.
+
+Finally, create a folder called ``` Build ``` within the root directory. Then from within the ``` Build ``` folder, call ``` cmake ../ ```.
 This will create an "out of source" build which will ensure that build files do not get mixed with the program source code.
 
 ### Shader Compiling
