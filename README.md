@@ -9,6 +9,7 @@ the code and increase readability.
 * [GLFW](https://glfw.org) - Cross-platform windowing
 * [Vulkan SDK](https://vulkan.lunarg.com/) - Graphics API
 * Your system must also be compatible with Vulkan
+* [Premake](https://premake.github.io/) - Project configuration/building
 
 ### Dependencies
 It's assumed that you understand how to compile the GLFW library for your specific platform. If not, then refer to GLFW's documentation. Create a folder called ```Dependencies``` within the root folder and place the GLFW library inside that folder. To know exactly the paths required please take a look the the ```premake5.lua``` file which has all the project configuration settings.
