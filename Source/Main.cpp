@@ -1,15 +1,6 @@
-#include <vulkan/vulkan.h>
+// todo: implement VK_LAYER_LUNARG_monitor valiation layer to display FPS
+// todo: add message callback for debugging
 
-#define GLFW_INCLUDE_NONE
-#include <GLFW/glfw3.h>
-
-// #define GLFW_EXPOSE_NATIVE_COCOA
-// #include <GLFW/glfw3native.h>
-
-// #define GLM_FORCE_RADIANS
-// #define GLM_FORCE_DEPTH_ZERO_TO_ONE
-// #include <glm/vec4.hpp>
-// #include <glm/mat4x4.hpp>
 
 #include <iostream>
 #include <vector>
@@ -18,6 +9,12 @@
 #include <fstream>
 #include <array>
 #include <algorithm>
+
+#include <vulkan/vulkan.h>
+
+#define GLFW_INCLUDE_NONE
+#include <GLFW/glfw3.h>
+
 
 GLFWwindow* window = nullptr;
 const uint16_t WIDTH = 800;
@@ -52,7 +49,7 @@ const std::vector<const char*> deviceExtensions = {
 };
 
 const std::vector<const char*> validationLayers = {
-    "VK_LAYER_KHRONOS_validation"
+    "VK_LAYER_KHRONOS_validation",
 };
 
 #ifdef NDEBUG
