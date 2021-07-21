@@ -20,29 +20,7 @@ GLFWwindow* window = nullptr;
 const uint16_t WIDTH = 800;
 const uint16_t HEIGHT = 600;
 
-void InputCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
-{
-    if (key == GLFW_KEY_ESCAPE)
-        glfwSetWindowShouldClose(window, true);
-}
-
-static std::vector<char> LoadShader(const std::string& path)
-{
-    std::ifstream file(path, std::ios::ate | std::ios::binary);
-
-    if (!file.is_open())
-    {
-        std::cout << "Failed to load " << path << " shader file\n";
-        return {};
-    }
-
-    size_t fileSize = static_cast<size_t>(file.tellg());
-    std::vector<char> buffer(fileSize);
-    file.seekg(0);
-    file.read(buffer.data(), fileSize);
-
-    return buffer;
-}
+VkResult result = VK_SUCCESS;
 
 const std::vector<const char*> deviceExtensions =
 {
@@ -60,8 +38,6 @@ const std::vector<const char*> validationLayers =
     const bool enableValidationLayers = true;
 #endif
 
-
-VkResult result = VK_SUCCESS;
 VkInstance instance = VK_NULL_HANDLE;
 VkSurfaceKHR surface = VK_NULL_HANDLE;
 
@@ -94,6 +70,31 @@ std::vector<VkFence> inFlightFences;
 std::vector<VkFence> imagesInFlight;
 
 std::size_t currentFrame = 0;
+
+
+void InputCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
+{
+    if (key == GLFW_KEY_ESCAPE)
+        glfwSetWindowShouldClose(window, true);
+}
+
+static std::vector<char> LoadShader(const std::string& path)
+{
+    std::ifstream file(path, std::ios::ate | std::ios::binary);
+
+    if (!file.is_open())
+    {
+        std::cout << "Failed to load " << path << " shader file\n";
+        return {};
+    }
+
+    size_t fileSize = static_cast<size_t>(file.tellg());
+    std::vector<char> buffer(fileSize);
+    file.seekg(0);
+    file.read(buffer.data(), fileSize);
+
+    return buffer;
+}
 
 struct SwapChainSupportDetails
 {
@@ -144,7 +145,8 @@ bool CheckValidationLayerSupport()
     return true;
 }
 
-struct QueueFamilyIndices {
+struct QueueFamilyIndices
+{
     std::optional<uint32_t> graphicsFamily;
     std::optional<uint32_t> presentFamily;
 
@@ -166,10 +168,10 @@ QueueFamilyIndices CheckQueueFamilies(const VkPhysicalDevice& device)
 
     int i = 0;
     VkBool32 presentSupported = false;
-    for (const auto& queueFamily : queueFamilies) {
-        if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+    for (const auto& queueFamily : queueFamilies)
+    {
+        if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT)
             indices.graphicsFamily = i;
-        }
 
         vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &presentSupported);
         if (presentSupported)
@@ -237,25 +239,26 @@ VkPresentModeKHR SelectSwapChainPresentMode(const std::vector<VkPresentModeKHR>&
 VkExtent2D SelectSwapChainExtent(const VkSurfaceCapabilitiesKHR& capabilities)
 {
     if (capabilities.currentExtent.width != UINT32_MAX)
-    {
         return capabilities.currentExtent;
-    }
-    else
+
+    int width, height;
+    glfwGetFramebufferSize(window, &width, &height);
+
+    VkExtent2D actualExtent =
     {
-        int width, height;
-        glfwGetFramebufferSize(window, &width, &height);
+        static_cast<uint32_t>(width),
+        static_cast<uint32_t>(height)
+    };
 
-        VkExtent2D actualExtent =
-        {
-            static_cast<uint32_t>(width),
-            static_cast<uint32_t>(height)
-        };
+    actualExtent.width = std::clamp(actualExtent.width,
+                                    capabilities.minImageExtent.width,
+                                    capabilities.maxImageExtent.width);
 
-        actualExtent.width = std::clamp(actualExtent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
-        actualExtent.height = std::clamp(actualExtent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
+    actualExtent.height = std::clamp(actualExtent.height,
+                                     capabilities.minImageExtent.height,
+                                     capabilities.maxImageExtent.height);
 
-        return actualExtent;
-    }
+    return actualExtent;
 }
 
 bool CheckDeviceSuitability(const VkPhysicalDevice& device)
@@ -288,7 +291,7 @@ VkShaderModule CreateShaderModule(const std::vector<char>& shaderCode)
     if (result != VK_SUCCESS)
     {
         std::cout << "Failed to create shader module\n";
-        return nullptr;
+        return VK_NULL_HANDLE;
     }
 
     return shaderModule;
@@ -321,7 +324,6 @@ int main()
         std::cout << "Validation layers requested but not available\n";
         return 0;
     }
-
 
     VkApplicationInfo applicationInfo = {};
     applicationInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -394,7 +396,11 @@ int main()
     QueueFamilyIndices indices = CheckQueueFamilies(physicalDevice);
 
     std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
-    std::set<uint32_t> uniqueQueueFamilies = { indices.graphicsFamily.value(), indices.presentFamily.value() };
+    std::set<uint32_t> uniqueQueueFamilies =
+    {
+        indices.graphicsFamily.value(),
+        indices.presentFamily.value()
+    };
 
     float queuePriority = 1.0f;
     for (uint32_t queueFamily : uniqueQueueFamilies)
@@ -460,13 +466,20 @@ int main()
 
 
     QueueFamilyIndices swapChainIndices = CheckQueueFamilies(physicalDevice);
-    std::array<uint32_t, 2> queueFamilyIndices = { swapChainIndices.graphicsFamily.value(), swapChainIndices.presentFamily.value() };
+    std::array<uint32_t, 2> queueFamilyIndices =
+    {
+        swapChainIndices.graphicsFamily.value(),
+        swapChainIndices.presentFamily.value()
+    };
 
-    if (swapChainIndices.graphicsFamily != swapChainIndices.presentFamily) {
+    if (swapChainIndices.graphicsFamily != swapChainIndices.presentFamily)
+    {
         swapChainCreateInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
         swapChainCreateInfo.queueFamilyIndexCount = static_cast<uint32_t>(queueFamilyIndices.size());
         swapChainCreateInfo.pQueueFamilyIndices = queueFamilyIndices.data();
-    } else {
+    }
+    else
+    {
         swapChainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
         swapChainCreateInfo.queueFamilyIndexCount = 0; // Optional
         swapChainCreateInfo.pQueueFamilyIndices = nullptr; // Optional
@@ -694,7 +707,12 @@ int main()
     graphicsPipelineCreateInfo.basePipelineIndex = -1; // Optional
 
 
-    result = vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &graphicsPipeline);
+    result = vkCreateGraphicsPipelines(device,
+                                       VK_NULL_HANDLE,
+                                       1,
+                                       &graphicsPipelineCreateInfo,
+                                       nullptr,
+                                       &graphicsPipeline);
     if (result != VK_SUCCESS)
     {
         std::cout << "Failed to create graphics pipeline\n";
@@ -721,7 +739,10 @@ int main()
         framebufferCreateInfo.height = swapChainExtent.height;
         framebufferCreateInfo.layers = 1;
 
-        result = vkCreateFramebuffer(device, &framebufferCreateInfo, nullptr, &swapChainFramebuffers[i]);
+        result = vkCreateFramebuffer(device,
+                                     &framebufferCreateInfo,
+                                     nullptr,
+                                     &swapChainFramebuffers[i]);
         if (result != VK_SUCCESS)
         {
             std::cout << "Failed to create Vulkan framebuffer\n";
@@ -752,7 +773,8 @@ int main()
     cbAllocateInfo.level =  VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     cbAllocateInfo.commandBufferCount = static_cast<uint32_t>(commandBuffers.size());
 
-    if (vkAllocateCommandBuffers(device, &cbAllocateInfo, commandBuffers.data()) != VK_SUCCESS)
+    result = vkAllocateCommandBuffers(device, &cbAllocateInfo, commandBuffers.data());
+    if (result != VK_SUCCESS)
     {
         std::cout << "Failed to allocate Vulkan command buffers\n";
         return 0;
@@ -765,7 +787,8 @@ int main()
         cbBeginInfo.flags = 0; // optional
         cbBeginInfo.pInheritanceInfo = nullptr; // optional
 
-        if (vkBeginCommandBuffer(commandBuffers[i], &cbBeginInfo) != VK_SUCCESS)
+        result = vkBeginCommandBuffer(commandBuffers[i], &cbBeginInfo);
+        if (result != VK_SUCCESS)
         {
             std::cout << "Failed to begin recording Vulkan command buffers\n";
             return 0;
@@ -812,14 +835,20 @@ int main()
 
     for (std::size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
     {
-        result = vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &imageAvailableSemaphores[i]);
+        result = vkCreateSemaphore(device,
+                                   &semaphoreCreateInfo,
+                                   nullptr,
+                                   &imageAvailableSemaphores[i]);
         if (result != VK_SUCCESS)
         {
             std::cout << "Failed to create Vulkan image semaphore\n";
             return 0;
         }
 
-        result = vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &renderFinishedSemaphores[i]);
+        result = vkCreateSemaphore(device,
+                                   &semaphoreCreateInfo,
+                                   nullptr,
+                                   &renderFinishedSemaphores[i]);
         if (result != VK_SUCCESS)
         {
             std::cout << "Failed to create Vulkan render semaphore\n";
