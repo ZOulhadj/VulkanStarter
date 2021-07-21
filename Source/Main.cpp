@@ -44,11 +44,13 @@ static std::vector<char> LoadShader(const std::string& path)
     return buffer;
 }
 
-const std::vector<const char*> deviceExtensions = {
+const std::vector<const char*> deviceExtensions =
+{
     "VK_KHR_swapchain",
 };
 
-const std::vector<const char*> validationLayers = {
+const std::vector<const char*> validationLayers =
+{
     "VK_LAYER_KHRONOS_validation",
 };
 
@@ -59,6 +61,7 @@ const std::vector<const char*> validationLayers = {
 #endif
 
 
+VkResult result = VK_SUCCESS;
 VkInstance instance = VK_NULL_HANDLE;
 VkSurfaceKHR surface = VK_NULL_HANDLE;
 
@@ -262,7 +265,8 @@ bool CheckDeviceSuitability(const VkPhysicalDevice& device)
     bool extensionsSupported = CheckDeviceExtensionSupport(device);
 
     bool swapChainAdequate = false;
-    if (extensionsSupported) {
+    if (extensionsSupported)
+    {
         SwapChainSupportDetails swapChainSupport = CheckSwapChainSupport(device);
         swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
     }
@@ -280,7 +284,8 @@ VkShaderModule CreateShaderModule(const std::vector<char>& shaderCode)
     shaderCreateInfo.pCode = reinterpret_cast<const uint32_t*>(shaderCode.data());
 
     VkShaderModule shaderModule = {};
-    if (vkCreateShaderModule(device, &shaderCreateInfo, nullptr, &shaderModule) != VK_SUCCESS)
+    result = vkCreateShaderModule(device, &shaderCreateInfo, nullptr, &shaderModule);
+    if (result != VK_SUCCESS)
     {
         std::cout << "Failed to create shader module\n";
         return nullptr;
@@ -331,25 +336,23 @@ int main()
     createInfo.pApplicationInfo = &applicationInfo;
     createInfo.enabledExtensionCount = glfwExtensionCount;
     createInfo.ppEnabledExtensionNames = glfwExtensions;
+    createInfo.enabledLayerCount = 0;
 
     if (enableValidationLayers)
     {
         createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
         createInfo.ppEnabledLayerNames = validationLayers.data();
     }
-    else
-    {
-        createInfo.enabledLayerCount = 0;
-    }
 
-    if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS)
+    result = vkCreateInstance(&createInfo, nullptr, &instance);
+    if (result != VK_SUCCESS)
     {
         std::cout << "Failed to create Vulkan instance\n";
         return 0;
     }
 
-
-    if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS)
+    result = glfwCreateWindowSurface(instance, window, nullptr, &surface);
+    if (result != VK_SUCCESS)
     {
         std::cout << "Failed to create Vulkan window surface\n";
         return 0;
@@ -413,15 +416,16 @@ int main()
     deviceCreateInfo.pEnabledFeatures = &deviceFeatures;
     deviceCreateInfo.ppEnabledExtensionNames = deviceExtensions.data();
     deviceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
+    deviceCreateInfo.enabledLayerCount = 0;
 
-    if (enableValidationLayers) {
-        createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
-        createInfo.ppEnabledLayerNames = validationLayers.data();
-    } else {
-        createInfo.enabledLayerCount = 0;
+    if (enableValidationLayers)
+    {
+        deviceCreateInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
+        deviceCreateInfo.ppEnabledLayerNames = validationLayers.data();
     }
 
-    if (vkCreateDevice(physicalDevice, &deviceCreateInfo, nullptr, &device) != VK_SUCCESS)
+    result = vkCreateDevice(physicalDevice, &deviceCreateInfo, nullptr, &device);
+    if (result != VK_SUCCESS)
     {
         std::cout << "Failed to create Vulkan device\n";
         return 0;
@@ -475,7 +479,8 @@ int main()
     swapChainCreateInfo.oldSwapchain = VK_NULL_HANDLE;
 
 
-    if (vkCreateSwapchainKHR(device, &swapChainCreateInfo, nullptr, &swapChain) != VK_SUCCESS)
+    result = vkCreateSwapchainKHR(device, &swapChainCreateInfo, nullptr, &swapChain);
+    if (result != VK_SUCCESS)
     {
         std::cout << "Failed to create Vulkan swap chain\n";
         return 0;
@@ -504,8 +509,8 @@ int main()
         imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
         imageViewCreateInfo.subresourceRange.layerCount = 1;
 
-
-        if (vkCreateImageView(device, &imageViewCreateInfo, nullptr, &swapChainImageViews[i]) != VK_SUCCESS)
+        result = vkCreateImageView(device, &imageViewCreateInfo, nullptr, &swapChainImageViews[i]);
+        if (result != VK_SUCCESS)
         {
             std::cout << "Failed to create Vulkan image view\n";
             return 0;
@@ -551,7 +556,8 @@ int main()
     renderPassCreateInfo.dependencyCount = 1;
     renderPassCreateInfo.pDependencies = &dependency;
 
-    if (vkCreateRenderPass(device, &renderPassCreateInfo, nullptr, &renderPass) != VK_SUCCESS)
+    result = vkCreateRenderPass(device, &renderPassCreateInfo, nullptr, &renderPass);
+    if (result != VK_SUCCESS)
     {
         std::cout << "Failed to create render pass\n";
         return 0;
@@ -662,7 +668,8 @@ int main()
     pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
     pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
 
-    if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS)
+    result = vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout);
+    if (result != VK_SUCCESS)
     {
         std::cout << "Failed to create pipeline layout\n";
         return 0;
@@ -687,7 +694,8 @@ int main()
     graphicsPipelineCreateInfo.basePipelineIndex = -1; // Optional
 
 
-    if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &graphicsPipeline) != VK_SUCCESS)
+    result = vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &graphicsPipeline);
+    if (result != VK_SUCCESS)
     {
         std::cout << "Failed to create graphics pipeline\n";
         return 0;
@@ -713,7 +721,8 @@ int main()
         framebufferCreateInfo.height = swapChainExtent.height;
         framebufferCreateInfo.layers = 1;
 
-        if (vkCreateFramebuffer(device, &framebufferCreateInfo, nullptr, &swapChainFramebuffers[i]) != VK_SUCCESS)
+        result = vkCreateFramebuffer(device, &framebufferCreateInfo, nullptr, &swapChainFramebuffers[i]);
+        if (result != VK_SUCCESS)
         {
             std::cout << "Failed to create Vulkan framebuffer\n";
             return 0;
@@ -728,7 +737,8 @@ int main()
     commandPoolCreateInfo.queueFamilyIndex = queueIndicesCommand.graphicsFamily.value();
     commandPoolCreateInfo.flags = 0; // optional
 
-    if (vkCreateCommandPool(device, &commandPoolCreateInfo, nullptr, &commandPool) != VK_SUCCESS)
+    result = vkCreateCommandPool(device, &commandPoolCreateInfo, nullptr, &commandPool);
+    if (result != VK_SUCCESS)
     {
         std::cout << "Failed to created Vulkan command pool\n";
         return 0;
@@ -802,13 +812,27 @@ int main()
 
     for (std::size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
     {
-        if (vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
-            vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS ||
-            vkCreateFence(device, &fenceCreateInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS)
+        result = vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &imageAvailableSemaphores[i]);
+        if (result != VK_SUCCESS)
         {
-            std::cout << "Failed to create Vulkan semaphores for a frame\n";
+            std::cout << "Failed to create Vulkan image semaphore\n";
             return 0;
         }
+
+        result = vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &renderFinishedSemaphores[i]);
+        if (result != VK_SUCCESS)
+        {
+            std::cout << "Failed to create Vulkan render semaphore\n";
+            return 0;
+        }
+
+        result = vkCreateFence(device, &fenceCreateInfo, nullptr, &inFlightFences[i]);
+        if (result != VK_SUCCESS)
+        {
+            std::cout << "Failed to create Vulkan in flight fence\n";
+            return 0;
+        }
+
     }
 
     while (!glfwWindowShouldClose(window))
@@ -816,7 +840,14 @@ int main()
         vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
         uint32_t imageIndex;
-        vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+        vkAcquireNextImageKHR(
+            device,
+            swapChain,
+            UINT64_MAX,
+            imageAvailableSemaphores[currentFrame],
+            VK_NULL_HANDLE,
+            &imageIndex
+        );
 
         if (imagesInFlight[imageIndex] != VK_NULL_HANDLE)
             vkWaitForFences(device, 1, &imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
@@ -826,15 +857,26 @@ int main()
         VkSubmitInfo submitInfo = {};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-        std::array<VkSemaphore, 1> waitSemaphores = { imageAvailableSemaphores[currentFrame] };
-        std::array<VkPipelineStageFlags, 1> waitStages = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+        std::array<VkSemaphore, 1> waitSemaphores =
+        {
+            imageAvailableSemaphores[currentFrame]
+        };
+
+        std::array<VkPipelineStageFlags, 1> waitStages =
+        {
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+        };
+
         submitInfo.waitSemaphoreCount = waitSemaphores.size();
         submitInfo.pWaitSemaphores = waitSemaphores.data();
         submitInfo.pWaitDstStageMask = waitStages.data();
         submitInfo.commandBufferCount = 1;
         submitInfo.pCommandBuffers = &commandBuffers[imageIndex];
 
-        std::array<VkSemaphore, 1> signalSemaphores = { renderFinishedSemaphores[currentFrame] };
+        std::array<VkSemaphore, 1> signalSemaphores =
+        {
+            renderFinishedSemaphores[currentFrame]
+        };
         submitInfo.signalSemaphoreCount = signalSemaphores.size();
         submitInfo.pSignalSemaphores = signalSemaphores.data();
 
