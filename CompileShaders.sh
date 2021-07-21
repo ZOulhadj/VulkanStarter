@@ -5,6 +5,9 @@ glslCompilerLocation="$HOME/Projects/Vulkan/1.2.182.0/x86_64/bin/glslc"
 vertexShaderSourceLocation="Source/Shaders/Triangle.vert"
 fragmentShaderSourceLocation="Source/Shaders/Triangle.frag"
 
+# create shaders folder within the Build directory
+mkdir -p Build/Shaders
+
 # compile the vertex and fragment shaders
-$glslCompilerLocation $vertexShaderSourceLocation -o Build/Vert.spv
-$glslCompilerLocation $fragmentShaderSourceLocation -o Build/Frag.spv
+$glslCompilerLocation $vertexShaderSourceLocation -o Build/Shaders/Vert.spv
+$glslCompilerLocation $fragmentShaderSourceLocation -o Build/Shaders/Frag.spv

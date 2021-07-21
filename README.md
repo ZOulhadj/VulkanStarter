@@ -43,3 +43,8 @@ you make any changes to the source text shader files then make sure to compile t
 There are a few ways to achieve this however, for simplicity, the Vulkan SDK provides a program
 called ```glslc``` which converts the shader files at ```Source/Shaders``` from text to SPIR-V
 and outputs them to the ```Build``` directory which then get loaded at runtime to Vulkan.
+
+## Running
+
+It's assumed that the working directory is within the ``` Build ``` folder. If not, then make sure you specify the relative path
+to the shader from wherever the program is running from.

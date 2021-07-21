@@ -560,8 +560,8 @@ int main()
 
 
     // initialisation of graphics pipeline
-    auto vertexShaderCode = LoadShader("Vert.spv");
-    auto fragmentShaderCode = LoadShader("Frag.spv");
+    auto vertexShaderCode = LoadShader("Shaders/Vert.spv");
+    auto fragmentShaderCode = LoadShader("Shaders/Frag.spv");
 
     VkShaderModule vertexShaderModule = CreateShaderModule(vertexShaderCode);
     VkShaderModule fragmentShaderModule = CreateShaderModule(fragmentShaderCode);
