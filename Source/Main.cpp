@@ -9,7 +9,6 @@
 #include <fstream>
 #include <array>
 #include <utility>
-#include <algorithm>
 
 #define VULKAN_HPP_NO_CONSTRUCTORS
 #define VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
@@ -275,6 +274,7 @@ public:
     {
         // we will not be using OpenGL
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+        glfwWindowHint(GLFW_RESIZABLE, false);
 
         m_Window = glfwCreateWindow(
                 static_cast<int>(m_Size.first),
@@ -326,6 +326,7 @@ int main()
     }
 
     extensions.push_back("VK_EXT_debug_utils");
+
 #endif
 
 
@@ -356,7 +357,6 @@ int main()
     }
 
 #ifndef NDEBUG
-
     using SeverityFlagBit = vk::DebugUtilsMessageSeverityFlagBitsEXT;
     using TypeFlagBit = vk::DebugUtilsMessageTypeFlagBitsEXT;
 
@@ -536,6 +536,7 @@ int main()
     };
 
 
+    // todo: getting SIGSEGV here in release mode
     if (g_Device.createSwapchainKHR(&swapchainInfo, nullptr, &g_SwapChain) != vk::Result::eSuccess)
     {
         std::cout << "Failed to create Vulkan swap chain\n";
@@ -609,7 +610,7 @@ int main()
         .dstSubpass = 0,
         .srcStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput,
         .dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput,
-
+        .srcAccessMask = vk::AccessFlagBits::eNoneKHR, // note: might not be needed
         .dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite
     };
 
@@ -774,7 +775,7 @@ int main()
         .renderPass = g_RenderPass,
         .subpass = 0,
         .basePipelineHandle = nullptr,
-        .basePipelineIndex = -1
+
     };
 
     vk::Result graphicsPipelineResult = g_Device.createGraphicsPipelines(
@@ -798,7 +799,7 @@ int main()
 
     for (std::size_t i = 0; i < g_SwapChainImageViews.size(); ++i)
     {
-        std::array<vk::ImageView, 1> attachments = {g_SwapChainImageViews[i] };
+        std::array<vk::ImageView, 1> attachments = { g_SwapChainImageViews[i] };
 
         vk::FramebufferCreateInfo framebufferCreateInfo =
         {
@@ -854,7 +855,7 @@ int main()
         }
 
 
-        vk::ClearValue clearColor(std::array<float, 4>{0.0f, 0.0f, 0.0f, 1.0f });
+        vk::ClearValue clearColor(std::array<float, 4>{ 0.0f, 0.0f, 0.0f, 1.0f });
 
         vk::RenderPassBeginInfo renderPassBeginInfo =
         {
@@ -1038,7 +1039,9 @@ int main()
     g_Device.destroy(nullptr);
     g_Instance.destroySurfaceKHR(g_Surface, nullptr);
 
+#ifndef NDEBUG
     g_Instance.destroyDebugUtilsMessengerEXT(g_DebugMessenger, nullptr, instanceLoader);
+#endif
 
     g_Instance.destroy(nullptr);
 
