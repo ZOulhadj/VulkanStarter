@@ -19,15 +19,14 @@
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
+const std::vector<const char*> deviceExtensions =
+{
+    "VK_KHR_swapchain",
+};
+
 #ifdef NDEBUG
-    const std::vector<const char*> deviceExtensions;
     const std::vector<const char*> validationLayers;
 #else
-    const std::vector<const char*> deviceExtensions =
-    {
-        "VK_KHR_swapchain",
-    };
-
     const std::vector<const char*> validationLayers =
     {
         "VK_LAYER_KHRONOS_validation",
@@ -559,13 +558,12 @@ int main()
             .components = { vk::ComponentSwizzle::eIdentity },
             .subresourceRange =
             {
-                vk::ImageAspectFlagBits::eColor,
-                0,
-                1,
-                0,
-                1
+                .aspectMask = vk::ImageAspectFlagBits::eColor,
+                .baseMipLevel = 0,
+                .levelCount = 1,
+                .baseArrayLayer = 0,
+                .layerCount = 1
             }
-
         };
 
         if (g_Device.createImageView(&imageViewInfo, nullptr, &g_SwapChainImageViews[i]) != vk::Result::eSuccess)
@@ -610,7 +608,6 @@ int main()
         .dstSubpass = 0,
         .srcStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput,
         .dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput,
-        .srcAccessMask = vk::AccessFlagBits::eNoneKHR, // note: might not be needed
         .dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite
     };
 
@@ -706,9 +703,6 @@ int main()
         .cullMode = vk::CullModeFlagBits::eBack,
         .frontFace = vk::FrontFace::eClockwise,
         .depthBiasEnable = false,
-        .depthBiasConstantFactor = 0.0f,
-        .depthBiasClamp = 0.0f,
-        .depthBiasSlopeFactor = 0.0f,
         .lineWidth = 1.0f,
     };
 
@@ -717,22 +711,12 @@ int main()
     {
         .rasterizationSamples = vk::SampleCountFlagBits::e1,
         .sampleShadingEnable = false,
-        .minSampleShading = 1.0f,
-        .pSampleMask = nullptr,
-        .alphaToCoverageEnable = false,
-        .alphaToOneEnable = false
-
     };
 
     vk::PipelineColorBlendAttachmentState colorBlendAttachment =
     {
         .blendEnable = false,
-        .srcColorBlendFactor = vk::BlendFactor::eOne,
-        .dstColorBlendFactor = vk::BlendFactor::eZero,
-        .colorBlendOp = vk::BlendOp::eAdd,
-        .srcAlphaBlendFactor = vk::BlendFactor::eOne,
-        .dstAlphaBlendFactor = vk::BlendFactor::eZero,
-        .alphaBlendOp = vk::BlendOp::eAdd
+        .colorWriteMask = { vk::ColorComponentFlagBits::eR |  vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA }
     };
 
     vk::PipelineColorBlendStateCreateInfo colorBlending =
@@ -742,15 +726,12 @@ int main()
         .attachmentCount = 1,
         .pAttachments = &colorBlendAttachment,
         .blendConstants = std::array<float, 4>{ 0.0f, 0.0f, 0.0f, 0.0f }
-
     };
 
     vk::PipelineLayoutCreateInfo pipelineLayoutInfo =
     {
         .setLayoutCount = 0,
-        .pSetLayouts = nullptr,
         .pushConstantRangeCount = 0,
-        .pPushConstantRanges = nullptr
     };
 
     if (g_Device.createPipelineLayout(&pipelineLayoutInfo, nullptr, &g_PipelineLayout) != vk::Result::eSuccess)
