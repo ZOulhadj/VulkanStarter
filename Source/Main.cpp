@@ -1,6 +1,6 @@
 // todo: implement VK_LAYER_LUNARG_monitor valiation layer to display FPS
 // todo: add debug message callback specifically for instance creation and deletion
-
+// todo: debug callback must be unique
 
 #include <iostream>
 #include <vector>
@@ -34,39 +34,42 @@ const std::vector<const char*> deviceExtensions =
 #endif
 
 
+vk::UniqueInstance g_Instance;
 
-vk::Instance g_Instance;
+#ifndef NDEBUG
 vk::DebugUtilsMessengerEXT g_DebugMessenger;
+#endif
 
-vk::SurfaceKHR g_Surface;
+vk::UniqueSurfaceKHR g_Surface;
 
 vk::PhysicalDevice g_PhysicalDevice;
-vk::Device g_Device;
+vk::UniqueDevice g_Device;
 vk::Queue g_GraphicsQueue;
 vk::Queue g_PresentQueue;
-vk::SwapchainKHR g_SwapChain;
+vk::UniqueSwapchainKHR g_SwapChain;
 
+// todo: Image is used for getswapchainImages, since there is no UniqueImage?
 std::vector<vk::Image> g_SwapChainImages;
 vk::Format g_SwapChainImageFormat;
 vk::Extent2D g_SwapChainExtent;
-std::vector<vk::ImageView> g_SwapChainImageViews;
+std::vector<vk::UniqueImageView> g_SwapChainImageViews;
 
-vk::RenderPass g_RenderPass;
-vk::PipelineLayout g_PipelineLayout;
-vk::Pipeline g_GraphicsPipeline;
+vk::UniqueRenderPass g_RenderPass;
+vk::UniquePipelineLayout g_PipelineLayout;
+vk::UniquePipeline g_GraphicsPipeline;
 
-std::vector<vk::Framebuffer> g_SwapChainFramebuffers;
+std::vector<vk::UniqueFramebuffer> g_SwapChainFramebuffers;
 
-vk::CommandPool g_CommandPool;
-std::vector<vk::CommandBuffer> g_CommandBuffers;
+vk::UniqueCommandPool g_CommandPool;
+std::vector<vk::UniqueCommandBuffer> g_CommandBuffers;
 
 
 const int MAX_FRAMES_IN_FLIGHT = 2;
 
-std::vector<vk::Semaphore> imageAvailableSemaphores;
-std::vector<vk::Semaphore> renderFinishedSemaphores;
-std::vector<vk::Fence> inFlightFences;
-std::vector<vk::Fence> imagesInFlight;
+std::vector<vk::UniqueSemaphore> imageAvailableSemaphores;
+std::vector<vk::UniqueSemaphore> renderFinishedSemaphores;
+std::vector<vk::UniqueFence> inFlightFences;
+std::vector<vk::UniqueFence> imagesInFlight;
 
 std::size_t currentFrame = 0;
 
@@ -76,6 +79,7 @@ static VKAPI_ATTR vk::Bool32 VKAPI_CALL DebugCallback(
         const vk::DebugUtilsMessengerCallbackDataEXT* callback,
         void* userData)
 {
+
     std::cerr << "Validation layer: " << callback->pMessage << "\n";
 
     return VK_FALSE;
@@ -167,7 +171,7 @@ QueueFamilyIndices CheckQueueFamilies(const vk::PhysicalDevice& physicalDevice)
         if (queueFamily.queueFlags & vk::QueueFlagBits::eGraphics)
             indices.graphicsFamily = i;
 
-        if (physicalDevice.getSurfaceSupportKHR(i, g_Surface, &presentSupported) != vk::Result::eSuccess)
+        if (physicalDevice.getSurfaceSupportKHR(i, g_Surface.get(), &presentSupported) != vk::Result::eSuccess)
             continue;
 
         if (presentSupported)
@@ -186,9 +190,9 @@ QueueFamilyIndices CheckQueueFamilies(const vk::PhysicalDevice& physicalDevice)
 SwapChainSupportDetails CheckSwapChainSupport(const vk::PhysicalDevice& physicalDevice)
 {
     SwapChainSupportDetails details = {};
-    details.capabilities = physicalDevice.getSurfaceCapabilitiesKHR(g_Surface);
-    details.formats = physicalDevice.getSurfaceFormatsKHR(g_Surface);
-    details.presentModes = physicalDevice.getSurfacePresentModesKHR(g_Surface);
+    details.capabilities = physicalDevice.getSurfaceCapabilitiesKHR(g_Surface.get());
+    details.formats = physicalDevice.getSurfaceFormatsKHR(g_Surface.get());
+    details.presentModes = physicalDevice.getSurfacePresentModesKHR(g_Surface.get());
 
     return details;
 }
@@ -219,7 +223,6 @@ vk::PresentModeKHR SelectSwapChainPresentMode(const std::vector<vk::PresentModeK
 
 vk::Extent2D SelectSwapChainExtent(const std::pair<unsigned int, unsigned int>& size, const vk::SurfaceCapabilitiesKHR& capabilities)
 {
-    // todo: fix required! currentExtent is 0 for some reason
     if (capabilities.currentExtent.width != UINT32_MAX)
         return capabilities.currentExtent;
 
@@ -240,7 +243,7 @@ vk::Extent2D SelectSwapChainExtent(const std::pair<unsigned int, unsigned int>& 
     return actualExtent;
 }
 
-vk::ShaderModule CreateShaderModule(const std::vector<char>& shaderCode)
+vk::UniqueShaderModule CreateShaderModule(const std::vector<char>& shaderCode)
 {
     vk::ShaderModuleCreateInfo shaderInfo
     {
@@ -248,8 +251,11 @@ vk::ShaderModule CreateShaderModule(const std::vector<char>& shaderCode)
         .pCode = reinterpret_cast<const uint32_t*>(shaderCode.data())
     };
 
-    vk::ShaderModule shaderModule = {};
-    if (g_Device.createShaderModule(&shaderInfo, nullptr, &shaderModule) != vk::Result::eSuccess)
+    vk::UniqueShaderModule shaderModule = {};
+
+
+    
+    if (g_Device->createShaderModuleUnique(shaderInfo, nullptr, &shaderModule) != vk::Result::eSuccess)
     {
         std::cout << "Failed to create shader module\n";
         return VK_NULL_HANDLE;
@@ -299,6 +305,7 @@ public:
 
 int main()
 {
+
     if (!glfwInit())
     {
         std::cout << "Failed to initialise GLFW\n";
@@ -348,7 +355,7 @@ int main()
         .ppEnabledExtensionNames = extensions.data()
     };
 
-    g_Instance = vk::createInstance(instanceInfo);
+    g_Instance = vk::createInstanceUnique(instanceInfo);
     if (!g_Instance)
     {
         std::cout << "Failed to create Vulkan instance\n";
@@ -368,8 +375,8 @@ int main()
         .pUserData = nullptr
     };
 
-    vk::DispatchLoaderDynamic instanceLoader(g_Instance, vkGetInstanceProcAddr);
-    g_DebugMessenger = g_Instance.createDebugUtilsMessengerEXT(debugInfo, nullptr, instanceLoader);
+    auto dynamicLoader = vk::DispatchLoaderDynamic(*g_Instance, vkGetInstanceProcAddr);
+    g_DebugMessenger = g_Instance->createDebugUtilsMessengerEXT(debugInfo, nullptr, dynamicLoader);
     if (!g_DebugMessenger)
     {
         std::cout << "Failed to create debug messenger callback\n";
@@ -380,16 +387,16 @@ int main()
 
     // todo: check if there is a way to handle the surface reference
     VkSurfaceKHR glfwSurface = {};
-    if (glfwCreateWindowSurface(VkInstance(g_Instance), window.Get(), nullptr, &glfwSurface) != VK_SUCCESS)
+    if (glfwCreateWindowSurface(VkInstance(g_Instance.get()), window.Get(), nullptr, &glfwSurface) != VK_SUCCESS)
     {
         std::cout << "Failed to create Vulkan window surface\n";
         return 0;
     }
 
-    g_Surface = vk::SurfaceKHR(glfwSurface);
+    g_Surface = vk::UniqueSurfaceKHR(glfwSurface);
 
     // get the total number of GPU's that support Vulkan on the system
-    std::vector<vk::PhysicalDevice> physicalDevices = g_Instance.enumeratePhysicalDevices();
+    std::vector<vk::PhysicalDevice> physicalDevices = g_Instance->enumeratePhysicalDevices();
     if (physicalDevices.empty())
     {
         std::cout << "No GPU's found with Vulkan support\n";
@@ -467,15 +474,15 @@ int main()
         .pEnabledFeatures = &physicalDeviceFeatures
     };
 
-    g_Device = g_PhysicalDevice.createDevice(deviceInfo);
+    g_Device = g_PhysicalDevice.createDeviceUnique(deviceInfo);
     if (!g_Device)
     {
         std::cout << "Failed to create Vulkan device\n";
         return 0;
     }
 
-    g_Device.getQueue(indices.graphicsFamily.value(), 0, &g_GraphicsQueue);
-    g_Device.getQueue(indices.presentFamily.value(), 0, &g_PresentQueue);
+    g_Device->getQueue(indices.graphicsFamily.value(), 0, &g_GraphicsQueue);
+    g_Device->getQueue(indices.presentFamily.value(), 0, &g_PresentQueue);
 
 
     // create swap chain
@@ -517,7 +524,7 @@ int main()
 
     vk::SwapchainCreateInfoKHR swapchainInfo
     {
-        .surface = g_Surface,
+        .surface = g_Surface.get(),
         .minImageCount = imageCount,
         .imageFormat = surfaceFormat.format,
         .imageColorSpace = surfaceFormat.colorSpace,
@@ -535,14 +542,13 @@ int main()
     };
 
 
-    // todo: getting SIGSEGV here in release mode
-    if (g_Device.createSwapchainKHR(&swapchainInfo, nullptr, &g_SwapChain) != vk::Result::eSuccess)
+    if (g_Device->createSwapchainKHR(&swapchainInfo, nullptr, &g_SwapChain.get()) != vk::Result::eSuccess)
     {
         std::cout << "Failed to create Vulkan swap chain\n";
         return 0;
     }
 
-    g_SwapChainImages = g_Device.getSwapchainImagesKHR(g_SwapChain);
+    g_SwapChainImages = g_Device->getSwapchainImagesKHR(g_SwapChain.get());
     g_SwapChainImageFormat = surfaceFormat.format;
     g_SwapChainExtent = extent;
 
@@ -566,7 +572,7 @@ int main()
             }
         };
 
-        if (g_Device.createImageView(&imageViewInfo, nullptr, &g_SwapChainImageViews[i]) != vk::Result::eSuccess)
+        if (g_Device->createImageView(&imageViewInfo, nullptr, &g_SwapChainImageViews[i].get()) != vk::Result::eSuccess)
         {
             std::cout << "Failed to create Vulkan image view\n";
             return 0;
@@ -621,7 +627,7 @@ int main()
         .pDependencies = &subpassDependency
     };
 
-    if (g_Device.createRenderPass(&renderPassInfo, nullptr, &g_RenderPass) != vk::Result::eSuccess)
+    if (g_Device->createRenderPass(&renderPassInfo, nullptr, &g_RenderPass.get()) != vk::Result::eSuccess)
     {
         std::cout << "Failed to create render pass\n";
         return 0;
@@ -633,20 +639,20 @@ int main()
     auto vertexShaderCode = LoadShader("../Shaders/Vert.spv");
     auto fragmentShaderCode = LoadShader("../Shaders/Frag.spv");
 
-    vk::ShaderModule vertexShaderModule = CreateShaderModule(vertexShaderCode);
-    vk::ShaderModule fragmentShaderModule = CreateShaderModule(fragmentShaderCode);
+    vk::UniqueShaderModule vertexShaderModule = CreateShaderModule(vertexShaderCode);
+    vk::UniqueShaderModule fragmentShaderModule = CreateShaderModule(fragmentShaderCode);
 
     vk::PipelineShaderStageCreateInfo vertexStageInfo =
     {
         .stage = vk::ShaderStageFlagBits::eVertex,
-        .module = vertexShaderModule,
+        .module = vertexShaderModule.get(),
         .pName = "main"
     };
 
     vk::PipelineShaderStageCreateInfo fragmentStageInfo =
     {
         .stage = vk::ShaderStageFlagBits::eFragment,
-        .module = fragmentShaderModule,
+        .module = fragmentShaderModule.get(),
         .pName = "main"
     };
 
@@ -716,7 +722,13 @@ int main()
     vk::PipelineColorBlendAttachmentState colorBlendAttachment =
     {
         .blendEnable = false,
-        .colorWriteMask = { vk::ColorComponentFlagBits::eR |  vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA }
+        .colorWriteMask =
+        {
+            vk::ColorComponentFlagBits::eR |
+            vk::ColorComponentFlagBits::eG |
+            vk::ColorComponentFlagBits::eB |
+            vk::ColorComponentFlagBits::eA
+        }
     };
 
     vk::PipelineColorBlendStateCreateInfo colorBlending =
@@ -734,7 +746,7 @@ int main()
         .pushConstantRangeCount = 0,
     };
 
-    if (g_Device.createPipelineLayout(&pipelineLayoutInfo, nullptr, &g_PipelineLayout) != vk::Result::eSuccess)
+    if (g_Device->createPipelineLayout(&pipelineLayoutInfo, nullptr, &g_PipelineLayout.get()) != vk::Result::eSuccess)
     {
         std::cout << "Failed to create pipeline layout\n";
         return 0;
@@ -752,19 +764,19 @@ int main()
         .pDepthStencilState = nullptr,
         .pColorBlendState = &colorBlending,
         .pDynamicState = nullptr,
-        .layout = g_PipelineLayout,
-        .renderPass = g_RenderPass,
+        .layout = g_PipelineLayout.get(),
+        .renderPass = g_RenderPass.get(),
         .subpass = 0,
         .basePipelineHandle = nullptr,
 
     };
 
-    vk::Result graphicsPipelineResult = g_Device.createGraphicsPipelines(
+    vk::Result graphicsPipelineResult = g_Device->createGraphicsPipelinesUnique(
             nullptr,
             1,
             &graphicsPipelineCreateInfo,
             nullptr,
-            &g_GraphicsPipeline
+            &g_GraphicsPipeline.get()
     );
     if (graphicsPipelineResult != vk::Result::eSuccess)
     {
@@ -773,18 +785,18 @@ int main()
     }
 
 
-    g_Device.destroyShaderModule(vertexShaderModule, nullptr);
-    g_Device.destroyShaderModule(fragmentShaderModule, nullptr);
+    g_Device->destroyShaderModule(vertexShaderModule.get(), nullptr);
+    g_Device->destroyShaderModule(fragmentShaderModule.get(), nullptr);
 
     g_SwapChainFramebuffers.resize(g_SwapChainImageViews.size());
 
     for (std::size_t i = 0; i < g_SwapChainImageViews.size(); ++i)
     {
-        std::array<vk::ImageView, 1> attachments = { g_SwapChainImageViews[i] };
+        std::array<vk::ImageView, 1> attachments = { g_SwapChainImageViews[i].get() };
 
         vk::FramebufferCreateInfo framebufferCreateInfo =
         {
-            .renderPass = g_RenderPass,
+            .renderPass = g_RenderPass.get(),
             .attachmentCount = attachments.size(),
             .pAttachments = attachments.data(),
             .width = g_SwapChainExtent.width,
@@ -792,7 +804,7 @@ int main()
             .layers = 1
         };
 
-        if (g_Device.createFramebuffer(&framebufferCreateInfo, nullptr, &g_SwapChainFramebuffers[i]) != vk::Result::eSuccess)
+        if (g_Device->createFramebufferUnique(&framebufferCreateInfo, nullptr, &g_SwapChainFramebuffers[i].get()) != vk::Result::eSuccess)
         {
             std::cout << "Failed to create Vulkan framebuffer\n";
             return 0;
@@ -805,7 +817,7 @@ int main()
         .queueFamilyIndex = indices.graphicsFamily.value()
     };
 
-    if (g_Device.createCommandPool(&commandPoolCreateInfo, nullptr, &g_CommandPool) != vk::Result::eSuccess)
+    if (g_Device->createCommandPoolUnique(&commandPoolCreateInfo, nullptr, &g_CommandPool.get()) != vk::Result::eSuccess)
     {
         std::cout << "Failed to created Vulkan command pool\n";
         return 0;
@@ -814,22 +826,26 @@ int main()
     g_CommandBuffers.resize(g_SwapChainFramebuffers.size());
     vk::CommandBufferAllocateInfo cbAllocateInfo =
     {
-        .commandPool = g_CommandPool,
+        .commandPool = g_CommandPool.get(),
         .level = vk::CommandBufferLevel::ePrimary,
         .commandBufferCount = static_cast<uint32_t>(g_CommandBuffers.size())
     };
 
-    if (g_Device.allocateCommandBuffers(&cbAllocateInfo, g_CommandBuffers.data()) != vk::Result::eSuccess)
+    g_CommandBuffers = g_Device->allocateCommandBuffersUnique(cbAllocateInfo);
+
+    // todo: find out if this is needed
+    if (g_CommandBuffers.empty())
     {
-        std::cout << "Failed to allocate Vulkan command buffers\n";
+        std::cout << "Command buffers are empty\n";
         return 0;
     }
+
 
     for (std::size_t i = 0; i < g_CommandBuffers.size(); ++i)
     {
         vk::CommandBufferBeginInfo cbBeginInfo = {};
 
-        if (g_CommandBuffers[i].begin(&cbBeginInfo) != vk::Result::eSuccess)
+        if (g_CommandBuffers[i]->begin(&cbBeginInfo) != vk::Result::eSuccess)
         {
             std::cout << "Failed to begin recording Vulkan command buffers\n";
             return 0;
@@ -840,49 +856,49 @@ int main()
 
         vk::RenderPassBeginInfo renderPassBeginInfo =
         {
-            .renderPass = g_RenderPass,
-            .framebuffer = g_SwapChainFramebuffers[i],
+            .renderPass = g_RenderPass.get(),
+            .framebuffer = g_SwapChainFramebuffers[i].get(),
             .renderArea = {{ 0, 0 }, g_SwapChainExtent },
             .clearValueCount = 1,
             .pClearValues = &clearColor
         };
 
-        g_CommandBuffers[i].beginRenderPass(&renderPassBeginInfo, vk::SubpassContents::eInline);
-        g_CommandBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, g_GraphicsPipeline);
+        g_CommandBuffers[i]->beginRenderPass(&renderPassBeginInfo, vk::SubpassContents::eInline);
+        g_CommandBuffers[i]->bindPipeline(vk::PipelineBindPoint::eGraphics, g_GraphicsPipeline.get());
 
-        g_CommandBuffers[i].draw(3, 1, 0, 0);
+        g_CommandBuffers[i]->draw(3, 1, 0, 0);
 
-        g_CommandBuffers[i].endRenderPass();
+        g_CommandBuffers[i]->endRenderPass();
 
-        g_CommandBuffers[i].end();
+        g_CommandBuffers[i]->end();
 
     }
 
     imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
     renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
     inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
-    imagesInFlight.resize(g_SwapChainImages.size(), VK_NULL_HANDLE);
+    imagesInFlight.resize(g_SwapChainImages.size());
 
     vk::SemaphoreCreateInfo semaphoreCreateInfo = {};
     vk::FenceCreateInfo fenceCreateInfo = { .flags = vk::FenceCreateFlagBits::eSignaled };
 
     for (std::size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
     {
-        if (g_Device.createSemaphore(&semaphoreCreateInfo, nullptr, &imageAvailableSemaphores[i]) != vk::Result::eSuccess)
+        if (g_Device->createSemaphoreUnique(semaphoreCreateInfo, nullptr, &imageAvailableSemaphores[i].get()) != vk::Result::eSuccess)
         {
             std::cout << "Failed to create Vulkan image semaphore\n";
             return 0;
         }
 
 
-        if (g_Device.createSemaphore(&semaphoreCreateInfo, nullptr, &renderFinishedSemaphores[i]) != vk::Result::eSuccess)
+        if (g_Device->createSemaphoreUnique(semaphoreCreateInfo, nullptr, &renderFinishedSemaphores[i].get()) != vk::Result::eSuccess)
         {
             std::cout << "Failed to create Vulkan render semaphore\n";
             return 0;
         }
 
 
-        if (g_Device.createFence(&fenceCreateInfo, nullptr, &inFlightFences[i]) != vk::Result::eSuccess)
+        if (g_Device->createFenceUnique(fenceCreateInfo, nullptr, &inFlightFences[i].get()) != vk::Result::eSuccess)
         {
             std::cout << "Failed to create Vulkan in flight fence\n";
             return 0;
@@ -892,17 +908,17 @@ int main()
 
     while (!window.ShouldClose())
     {
-        if (g_Device.waitForFences(1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX) != vk::Result::eSuccess)
+        if (g_Device->waitForFences(1, &inFlightFences[currentFrame].get(), VK_TRUE, UINT64_MAX) != vk::Result::eSuccess)
         {
             std::cout << "Unable to wait for fence?\n";
             return 0;
         }
 
         uint32_t imageIndex;
-        vk::Result acquireNextImageResult = g_Device.acquireNextImageKHR(
-                g_SwapChain,
+        vk::Result acquireNextImageResult = g_Device->acquireNextImageKHR(
+                g_SwapChain.get(),
                 UINT64_MAX,
-                imageAvailableSemaphores[currentFrame],
+                imageAvailableSemaphores[currentFrame].get(),
                 nullptr,
                 &imageIndex);
         if (acquireNextImageResult != vk::Result::eSuccess)
@@ -913,7 +929,7 @@ int main()
 
         if (imagesInFlight[imageIndex])
         {
-            if (g_Device.waitForFences(1, &imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX) != vk::Result::eSuccess)
+            if (g_Device->waitForFences(1, &imagesInFlight[imageIndex].get(), VK_TRUE, UINT64_MAX) != vk::Result::eSuccess)
             {
                 std::cout << "Error for 'waitForFences'.\n";
                 return 0;
@@ -924,14 +940,14 @@ int main()
 
 
 
-        imagesInFlight[imageIndex] = inFlightFences[currentFrame];
+        imagesInFlight[imageIndex].swap(inFlightFences[currentFrame]);
 
         vk::SubmitInfo submitInfo = {};
 
 
         std::array<vk::Semaphore, 1> waitSemaphores =
         {
-            imageAvailableSemaphores[currentFrame]
+            imageAvailableSemaphores[currentFrame].get()
         };
 
         std::array<vk::PipelineStageFlags, 1> waitStages =
@@ -943,23 +959,23 @@ int main()
         submitInfo.pWaitSemaphores = waitSemaphores.data();
         submitInfo.pWaitDstStageMask = waitStages.data();
         submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &g_CommandBuffers[imageIndex];
+        submitInfo.pCommandBuffers = &g_CommandBuffers[imageIndex].get();
 
         std::array<vk::Semaphore, 1> signalSemaphores =
         {
-            renderFinishedSemaphores[currentFrame]
+            renderFinishedSemaphores[currentFrame].get()
         };
         submitInfo.signalSemaphoreCount = signalSemaphores.size();
         submitInfo.pSignalSemaphores = signalSemaphores.data();
 
 
-        if (g_Device.resetFences(1, &inFlightFences[currentFrame]) != vk::Result::eSuccess)
+        if (g_Device->resetFences(1, &inFlightFences[currentFrame].get()) != vk::Result::eSuccess)
         {
             std::cout << "Unable to reset fence\n";
             return 0;
         }
 
-        if (g_GraphicsQueue.submit(1, &submitInfo, inFlightFences[currentFrame]) != vk::Result::eSuccess)
+        if (g_GraphicsQueue.submit(1, &submitInfo, inFlightFences[currentFrame].get()) != vk::Result::eSuccess)
         {
             std::cout << "Failed to submit Vulkan draw command buffer\n";
             return 0;
@@ -971,7 +987,7 @@ int main()
             .pWaitSemaphores = signalSemaphores.data()
         };
 
-        std::array<vk::SwapchainKHR, 1> swapChains = {g_SwapChain };
+        std::array<vk::SwapchainKHR, 1> swapChains = { g_SwapChain.get() };
         presentInfo.swapchainCount = swapChains.size();
         presentInfo.pSwapchains = swapChains.data();
         presentInfo.pImageIndices = &imageIndex;
@@ -990,10 +1006,11 @@ int main()
         glfwPollEvents();
     }
 
-    vkDeviceWaitIdle(g_Device);
+    vkDeviceWaitIdle(g_Device.get());
 
     // clean up
-    for (const auto& renderSemaphore : renderFinishedSemaphores)
+/*
+   for (const auto& renderSemaphore : renderFinishedSemaphores)
         g_Device.destroySemaphore(renderSemaphore, nullptr);
 
     for (const auto& imageSemaphore : imageAvailableSemaphores)
@@ -1018,13 +1035,16 @@ int main()
     g_Device.destroyRenderPass(g_RenderPass, nullptr);
     g_Device.destroySwapchainKHR(g_SwapChain, nullptr);
     g_Device.destroy(nullptr);
-    g_Instance.destroySurfaceKHR(g_Surface, nullptr);
+    g_Instance->destroySurfaceKHR(g_Surface, nullptr);
+
+
+*/
 
 #ifndef NDEBUG
-    g_Instance.destroyDebugUtilsMessengerEXT(g_DebugMessenger, nullptr, instanceLoader);
+    g_Instance->destroyDebugUtilsMessengerEXT(g_DebugMessenger, nullptr, dynamicLoader);
 #endif
 
-    g_Instance.destroy(nullptr);
+    //g_Instance.destroy(nullptr);
 
 
     glfwTerminate();
