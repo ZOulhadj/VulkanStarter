@@ -22,8 +22,26 @@
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
+// note: VK_KHR_get_physical_device_properties2 is required for macOS due to MoltenVK
+std::vector<const char*> instanceExtensions =
+{
+#ifdef __APPLE__
+    "VK_KHR_get_physical_device_properties2",
+#endif
+
+#ifndef NDEBUG
+    "VK_EXT_debug_utils",
+#endif
+};
+
+
+// note: VK_KHR_portability_subset is required for macOS due to MoltenVK
 const std::vector<const char*> deviceExtensions =
 {
+#ifdef __APPLE__
+    "VK_KHR_portability_subset",
+#endif
+
     "VK_KHR_swapchain",
 };
 
@@ -322,7 +340,8 @@ int main()
 
     uint32_t glfwExtensionCount = 0;
     const char** glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-    std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
+    const std::vector<const char*> glfwExtensionsList(glfwExtensions, glfwExtensions + glfwExtensionCount);
+    instanceExtensions.insert(instanceExtensions.end(), glfwExtensionsList.begin(), glfwExtensionsList.end());
 
     // check validation/debugging layer support in debug mode
 #ifndef NDEBUG
@@ -331,9 +350,6 @@ int main()
         std::cout << "Validation layers requested but not available\n";
         return 0;
     }
-
-    extensions.push_back("VK_EXT_debug_utils");
-
 #endif
 
 
@@ -352,8 +368,8 @@ int main()
         .pApplicationInfo = &applicationInfo,
         .enabledLayerCount = static_cast<uint32_t>(validationLayers.size()),
         .ppEnabledLayerNames = validationLayers.data(),
-        .enabledExtensionCount = static_cast<uint32_t>(extensions.size()),
-        .ppEnabledExtensionNames = extensions.data()
+        .enabledExtensionCount = static_cast<uint32_t>(instanceExtensions.size()),
+        .ppEnabledExtensionNames = instanceExtensions.data()
     };
 
     g_Instance = vk::createInstanceUnique(instanceInfo);
