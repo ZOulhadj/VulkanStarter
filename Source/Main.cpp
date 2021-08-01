@@ -1,6 +1,9 @@
 // todo: implement VK_LAYER_LUNARG_monitor valiation layer to display FPS
 // todo: add debug message callback specifically for instance creation and deletion
-// todo: debug callback must be unique
+/*
+ * todo: swapchain images are not UniqueImage because the get images function only returns Image.
+ * need to find out more.
+ */
 
 #include <iostream>
 #include <vector>
@@ -37,7 +40,7 @@ const std::vector<const char*> deviceExtensions =
 vk::UniqueInstance g_Instance;
 
 #ifndef NDEBUG
-vk::DebugUtilsMessengerEXT g_DebugMessenger;
+vk::UniqueHandle<vk::DebugUtilsMessengerEXT, vk::DispatchLoaderDynamic> g_DebugMessenger;
 #endif
 
 vk::UniqueSurfaceKHR g_Surface;
@@ -56,7 +59,7 @@ std::vector<vk::UniqueImageView> g_SwapChainImageViews;
 
 vk::UniqueRenderPass g_RenderPass;
 vk::UniquePipelineLayout g_PipelineLayout;
-vk::UniquePipeline g_GraphicsPipeline;
+std::vector<vk::UniquePipeline> g_GraphicsPipeline;
 
 std::vector<vk::UniqueFramebuffer> g_SwapChainFramebuffers;
 
@@ -69,7 +72,7 @@ const int MAX_FRAMES_IN_FLIGHT = 2;
 std::vector<vk::UniqueSemaphore> imageAvailableSemaphores;
 std::vector<vk::UniqueSemaphore> renderFinishedSemaphores;
 std::vector<vk::UniqueFence> inFlightFences;
-std::vector<vk::UniqueFence> imagesInFlight;
+std::vector<vk::Fence*> imagesInFlight;
 
 std::size_t currentFrame = 0;
 
@@ -251,14 +254,12 @@ vk::UniqueShaderModule CreateShaderModule(const std::vector<char>& shaderCode)
         .pCode = reinterpret_cast<const uint32_t*>(shaderCode.data())
     };
 
-    vk::UniqueShaderModule shaderModule = {};
+    vk::UniqueShaderModule shaderModule = g_Device->createShaderModuleUnique(shaderInfo, nullptr);
 
-
-    
-    if (g_Device->createShaderModuleUnique(shaderInfo, nullptr, &shaderModule) != vk::Result::eSuccess)
+    if (!shaderModule)
     {
         std::cout << "Failed to create shader module\n";
-        return VK_NULL_HANDLE;
+        return {};
     }
 
     return shaderModule;
@@ -375,8 +376,8 @@ int main()
         .pUserData = nullptr
     };
 
-    auto dynamicLoader = vk::DispatchLoaderDynamic(*g_Instance, vkGetInstanceProcAddr);
-    g_DebugMessenger = g_Instance->createDebugUtilsMessengerEXT(debugInfo, nullptr, dynamicLoader);
+    vk::DispatchLoaderDynamic dynamicLoader(g_Instance.get(), vkGetInstanceProcAddr);
+    g_DebugMessenger = g_Instance->createDebugUtilsMessengerEXTUnique(debugInfo, nullptr, dynamicLoader);
     if (!g_DebugMessenger)
     {
         std::cout << "Failed to create debug messenger callback\n";
@@ -771,22 +772,19 @@ int main()
 
     };
 
-    vk::Result graphicsPipelineResult = g_Device->createGraphicsPipelinesUnique(
-            nullptr,
-            1,
-            &graphicsPipelineCreateInfo,
-            nullptr,
-            &g_GraphicsPipeline.get()
-    );
-    if (graphicsPipelineResult != vk::Result::eSuccess)
+    g_GraphicsPipeline = g_Device->createGraphicsPipelinesUnique(nullptr, graphicsPipelineCreateInfo, nullptr).value;
+
+    if (!g_GraphicsPipeline[0])
     {
         std::cout << "Failed to create graphics pipeline\n";
         return 0;
     }
 
 
-    g_Device->destroyShaderModule(vertexShaderModule.get(), nullptr);
-    g_Device->destroyShaderModule(fragmentShaderModule.get(), nullptr);
+/*    vertexShaderModule.release();
+    fragmentShaderModule.release();*/
+   /* g_Device->destroyShaderModule(vertexShaderModule.get(), nullptr);
+    g_Device->destroyShaderModule(fragmentShaderModule.get(), nullptr);*/
 
     g_SwapChainFramebuffers.resize(g_SwapChainImageViews.size());
 
@@ -804,7 +802,8 @@ int main()
             .layers = 1
         };
 
-        if (g_Device->createFramebufferUnique(&framebufferCreateInfo, nullptr, &g_SwapChainFramebuffers[i].get()) != vk::Result::eSuccess)
+        g_SwapChainFramebuffers[i] = g_Device->createFramebufferUnique(framebufferCreateInfo, nullptr);
+        if (!g_SwapChainFramebuffers[i])
         {
             std::cout << "Failed to create Vulkan framebuffer\n";
             return 0;
@@ -817,7 +816,8 @@ int main()
         .queueFamilyIndex = indices.graphicsFamily.value()
     };
 
-    if (g_Device->createCommandPoolUnique(&commandPoolCreateInfo, nullptr, &g_CommandPool.get()) != vk::Result::eSuccess)
+    g_CommandPool = g_Device->createCommandPoolUnique(commandPoolCreateInfo, nullptr);
+    if (!g_CommandPool)
     {
         std::cout << "Failed to created Vulkan command pool\n";
         return 0;
@@ -864,7 +864,7 @@ int main()
         };
 
         g_CommandBuffers[i]->beginRenderPass(&renderPassBeginInfo, vk::SubpassContents::eInline);
-        g_CommandBuffers[i]->bindPipeline(vk::PipelineBindPoint::eGraphics, g_GraphicsPipeline.get());
+        g_CommandBuffers[i]->bindPipeline(vk::PipelineBindPoint::eGraphics, g_GraphicsPipeline[0].get());
 
         g_CommandBuffers[i]->draw(3, 1, 0, 0);
 
@@ -884,21 +884,22 @@ int main()
 
     for (std::size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
     {
-        if (g_Device->createSemaphoreUnique(semaphoreCreateInfo, nullptr, &imageAvailableSemaphores[i].get()) != vk::Result::eSuccess)
+        imageAvailableSemaphores[i] = g_Device->createSemaphoreUnique(semaphoreCreateInfo, nullptr);
+        if (!imageAvailableSemaphores[i])
         {
             std::cout << "Failed to create Vulkan image semaphore\n";
             return 0;
         }
 
-
-        if (g_Device->createSemaphoreUnique(semaphoreCreateInfo, nullptr, &renderFinishedSemaphores[i].get()) != vk::Result::eSuccess)
+        renderFinishedSemaphores[i] = g_Device->createSemaphoreUnique(semaphoreCreateInfo, nullptr);
+        if (!renderFinishedSemaphores[i])
         {
             std::cout << "Failed to create Vulkan render semaphore\n";
             return 0;
         }
 
-
-        if (g_Device->createFenceUnique(fenceCreateInfo, nullptr, &inFlightFences[i].get()) != vk::Result::eSuccess)
+        inFlightFences[i] = g_Device->createFenceUnique(fenceCreateInfo, nullptr);
+        if (!inFlightFences[i])
         {
             std::cout << "Failed to create Vulkan in flight fence\n";
             return 0;
@@ -929,7 +930,7 @@ int main()
 
         if (imagesInFlight[imageIndex])
         {
-            if (g_Device->waitForFences(1, &imagesInFlight[imageIndex].get(), VK_TRUE, UINT64_MAX) != vk::Result::eSuccess)
+            if (g_Device->waitForFences(1, imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX) != vk::Result::eSuccess)
             {
                 std::cout << "Error for 'waitForFences'.\n";
                 return 0;
@@ -938,9 +939,9 @@ int main()
         }
 
 
+        imagesInFlight[imageIndex] = &inFlightFences[currentFrame].get();
 
 
-        imagesInFlight[imageIndex].swap(inFlightFences[currentFrame]);
 
         vk::SubmitInfo submitInfo = {};
 
@@ -967,7 +968,6 @@ int main()
         };
         submitInfo.signalSemaphoreCount = signalSemaphores.size();
         submitInfo.pSignalSemaphores = signalSemaphores.data();
-
 
         if (g_Device->resetFences(1, &inFlightFences[currentFrame].get()) != vk::Result::eSuccess)
         {
@@ -1008,43 +1008,9 @@ int main()
 
     vkDeviceWaitIdle(g_Device.get());
 
-    // clean up
-/*
-   for (const auto& renderSemaphore : renderFinishedSemaphores)
-        g_Device.destroySemaphore(renderSemaphore, nullptr);
+    // todo: terminating with uncaught exception of type std::__1::system_error: mutex lock failed: Invalid argument
+    // todo: due to vk::UniqueFence
 
-    for (const auto& imageSemaphore : imageAvailableSemaphores)
-        g_Device.destroySemaphore(imageSemaphore, nullptr);
-
-
-    for (const auto& fence : inFlightFences)
-        g_Device.destroyFence(fence, nullptr);
-
-
-    g_Device.destroyCommandPool(g_CommandPool, nullptr);
-
-    for (auto framebuffer : g_SwapChainFramebuffers)
-        g_Device.destroyFramebuffer(framebuffer, nullptr);
-
-
-    for (auto imageView : g_SwapChainImageViews)
-        g_Device.destroyImageView(imageView, nullptr);
-
-    g_Device.destroyPipeline(g_GraphicsPipeline, nullptr);
-    g_Device.destroyPipelineLayout(g_PipelineLayout, nullptr);
-    g_Device.destroyRenderPass(g_RenderPass, nullptr);
-    g_Device.destroySwapchainKHR(g_SwapChain, nullptr);
-    g_Device.destroy(nullptr);
-    g_Instance->destroySurfaceKHR(g_Surface, nullptr);
-
-
-*/
-
-#ifndef NDEBUG
-    g_Instance->destroyDebugUtilsMessengerEXT(g_DebugMessenger, nullptr, dynamicLoader);
-#endif
-
-    //g_Instance.destroy(nullptr);
 
 
     glfwTerminate();
