@@ -2,7 +2,7 @@
 // todo: add debug message callback specifically for instance creation and deletion
 /*
  * todo: swapchain images are not UniqueImage because the get images function only returns Image.
- * need to find out more.
+ * todo: need to find out more.
  */
 
 #include <iostream>
