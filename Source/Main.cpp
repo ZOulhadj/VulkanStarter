@@ -24,6 +24,39 @@
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
+
+// note: VK_KHR_get_physical_device_properties2 is required for macOS due to MoltenVK
+std::vector<const char*> instanceExtensions =
+        {
+#ifdef __APPLE__
+        "VK_KHR_get_physical_device_properties2",
+#endif
+
+#ifndef NDEBUG
+        "VK_EXT_debug_utils",
+#endif
+        };
+
+
+// note: VK_KHR_portability_subset is required for macOS due to MoltenVK
+const std::vector<const char*> deviceExtensions =
+        {
+#ifdef __APPLE__
+        "VK_KHR_portability_subset",
+#endif
+        "VK_KHR_swapchain",
+                };
+
+#ifdef NDEBUG
+const std::vector<const char*> validationLayers;
+#else
+const std::vector<const char*> validationLayers =
+        {
+        "VK_LAYER_KHRONOS_validation",
+        };
+#endif
+
+
 class Application
 {
 public:
@@ -91,15 +124,15 @@ public:
 
 
 // Vulkan classes
-/*class VulkanInstance
+class VulkanInstance
 {
 private:
     vk::UniqueInstance m_Instance;
 public:
-    VulkanInstance() = default;
-
-    [[nodiscard]] bool CreateInstance()
+    void CreateInstance()
     {
+        assert(!m_Instance.get());
+
         vk::ApplicationInfo applicationInfo
         {
             .pApplicationName = "Application Name",
@@ -119,12 +152,12 @@ public:
         };
 
         m_Instance = vk::createInstanceUnique(instanceInfo);
-        if (!m_)
-
     }
 
+    vk::Instance& Get() { return m_Instance.get(); }
 };
-*/
+
+
 
 struct QueueFamilyIndices
 {
@@ -167,40 +200,9 @@ int main()
     Window window("Vulkan Application", 800, 600);
     window.CreateWindow();
 
+    VulkanInstance g_Instance;
 
-    // note: VK_KHR_get_physical_device_properties2 is required for macOS due to MoltenVK
-    std::vector<const char*> instanceExtensions =
-    {
-#ifdef __APPLE__
-        "VK_KHR_get_physical_device_properties2",
-#endif
-
-#ifndef NDEBUG
-        "VK_EXT_debug_utils",
-#endif
-    };
-
-
-    // note: VK_KHR_portability_subset is required for macOS due to MoltenVK
-    const std::vector<const char*> deviceExtensions =
-    {
-#ifdef __APPLE__
-        "VK_KHR_portability_subset",
-#endif
-        "VK_KHR_swapchain",
-    };
-
-#ifdef NDEBUG
-    const std::vector<const char*> validationLayers;
-#else
-    const std::vector<const char*> validationLayers =
-    {
-        "VK_LAYER_KHRONOS_validation",
-    };
-#endif
-
-
-    vk::UniqueInstance g_Instance;
+    //vk::UniqueInstance g_Instance;
 
 #ifndef NDEBUG
     vk::UniqueHandle<vk::DebugUtilsMessengerEXT, vk::DispatchLoaderDynamic> g_DebugMessenger;
@@ -253,27 +255,7 @@ int main()
     }
 #endif
 
-
-
-    vk::ApplicationInfo applicationInfo
-    {
-        .pApplicationName = "Application Name",
-        .applicationVersion = VK_MAKE_VERSION(1, 0, 0),
-        .pEngineName = "Engine",
-        .engineVersion = VK_MAKE_VERSION(1, 0, 0),
-        .apiVersion = VK_API_VERSION_1_0
-    };
-
-    vk::InstanceCreateInfo instanceInfo
-    {
-        .pApplicationInfo = &applicationInfo,
-        .enabledLayerCount = static_cast<uint32_t>(validationLayers.size()),
-        .ppEnabledLayerNames = validationLayers.data(),
-        .enabledExtensionCount = static_cast<uint32_t>(instanceExtensions.size()),
-        .ppEnabledExtensionNames = instanceExtensions.data()
-    };
-
-    g_Instance = vk::createInstanceUnique(instanceInfo);
+    g_Instance.CreateInstance();
 
 #ifndef NDEBUG
     using SeverityFlagBit = vk::DebugUtilsMessageSeverityFlagBitsEXT;
@@ -288,19 +270,19 @@ int main()
         .pUserData = nullptr
     };
 
-    vk::DispatchLoaderDynamic dynamicLoader(g_Instance.get(), vkGetInstanceProcAddr);
-    g_DebugMessenger = g_Instance->createDebugUtilsMessengerEXTUnique(debugInfo, nullptr, dynamicLoader);
+    vk::DispatchLoaderDynamic dynamicLoader(g_Instance.Get(), vkGetInstanceProcAddr);
+    g_DebugMessenger = g_Instance.Get().createDebugUtilsMessengerEXTUnique(debugInfo, nullptr, dynamicLoader);
 #endif
 
-    if (glfwCreateWindowSurface(g_Instance.get(), window.Get(), nullptr, reinterpret_cast<VkSurfaceKHR*>(&g_Surface.get())) != VK_SUCCESS)
+    if (glfwCreateWindowSurface(g_Instance.Get(), window.Get(), nullptr, reinterpret_cast<VkSurfaceKHR*>(&g_Surface.get())) != VK_SUCCESS)
     {
         std::cout << "Failed to create Vulkan window surface\n";
         return 0;
     }
-    g_Surface = vk::UniqueSurfaceKHR(g_Surface.get(), g_Instance.get());
+    g_Surface = vk::UniqueSurfaceKHR(g_Surface.get(), g_Instance.Get());
 
     // get the total number of GPU's that support Vulkan on the system
-    std::vector<vk::PhysicalDevice> physicalDevices = g_Instance->enumeratePhysicalDevices();
+    std::vector<vk::PhysicalDevice> physicalDevices = g_Instance.Get().enumeratePhysicalDevices();
     if (physicalDevices.empty())
     {
         std::cout << "No GPU's found with Vulkan support\n";
