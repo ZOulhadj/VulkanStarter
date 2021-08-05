@@ -12,6 +12,7 @@
 #include <fstream>
 #include <array>
 #include <utility>
+#include <exception>
 
 #define VULKAN_HPP_NO_CONSTRUCTORS
 #define VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
@@ -23,23 +24,16 @@
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
-struct QueueFamilyIndices
+class Application
 {
-    std::optional<uint32_t> graphicsFamily;
-    std::optional<uint32_t> presentFamily;
-
-    [[nodiscard]] bool IsComplete() const
+public:
+    Application()
     {
-        return graphicsFamily.has_value() && presentFamily.has_value();
+        if (!glfwInit())
+            throw std::exception();
     }
 };
 
-struct SwapChainSupportDetails
-{
-    vk::SurfaceCapabilitiesKHR capabilities;
-    std::vector<vk::SurfaceFormatKHR> formats;
-    std::vector<vk::PresentModeKHR> presentModes;
-};
 
 class Window
 {
@@ -59,15 +53,18 @@ public:
         glfwDestroyWindow(m_Window);
     }
 
-    [[nodiscard]] bool CreateWindow()
+    void CreateWindow()
     {
+        assert(m_Window == nullptr);
+
         // we will not be using OpenGL
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
         glfwWindowHint(GLFW_RESIZABLE, false);
 
         m_Window = glfwCreateWindow(m_Width, m_Height, m_Title.c_str(), nullptr, nullptr);
 
-        return m_Window;
+        if (!m_Window)
+            throw std::exception();
     }
 
     [[nodiscard]] bool ShouldClose() const { return glfwWindowShouldClose(m_Window); }
@@ -91,6 +88,62 @@ public:
 
 };
 
+
+
+// Vulkan classes
+/*class VulkanInstance
+{
+private:
+    vk::UniqueInstance m_Instance;
+public:
+    VulkanInstance() = default;
+
+    [[nodiscard]] bool CreateInstance()
+    {
+        vk::ApplicationInfo applicationInfo
+        {
+            .pApplicationName = "Application Name",
+            .applicationVersion = VK_MAKE_VERSION(1, 0, 0),
+            .pEngineName = "Engine",
+            .engineVersion = VK_MAKE_VERSION(1, 0, 0),
+            .apiVersion = VK_API_VERSION_1_0
+        };
+
+        vk::InstanceCreateInfo instanceInfo
+        {
+            .pApplicationInfo = &applicationInfo,
+            .enabledLayerCount = static_cast<uint32_t>(validationLayers.size()),
+            .ppEnabledLayerNames = validationLayers.data(),
+            .enabledExtensionCount = static_cast<uint32_t>(instanceExtensions.size()),
+            .ppEnabledExtensionNames = instanceExtensions.data()
+        };
+
+        m_Instance = vk::createInstanceUnique(instanceInfo);
+        if (!m_)
+
+    }
+
+};
+*/
+
+struct QueueFamilyIndices
+{
+    std::optional<uint32_t> graphicsFamily;
+    std::optional<uint32_t> presentFamily;
+
+    [[nodiscard]] bool IsComplete() const
+    {
+        return graphicsFamily.has_value() && presentFamily.has_value();
+    }
+};
+
+struct SwapChainSupportDetails
+{
+    vk::SurfaceCapabilitiesKHR capabilities;
+    std::vector<vk::SurfaceFormatKHR> formats;
+    std::vector<vk::PresentModeKHR> presentModes;
+};
+
 static VKAPI_ATTR vk::Bool32 VKAPI_CALL DebugCallback(
         vk::DebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
         vk::DebugUtilsMessageTypeFlagsEXT messageType,
@@ -98,7 +151,7 @@ static VKAPI_ATTR vk::Bool32 VKAPI_CALL DebugCallback(
         void* userData);
 
 bool CheckValidationLayerSupport(const std::vector<const char*>& validationLayers);
-std::optional<std::vector<char>> LoadShader(const std::string& path);
+std::vector<char> LoadShader(const std::string& path);
 bool CheckDeviceExtensionSupport(const vk::PhysicalDevice& physicalDevice, const std::vector<const char*>& deviceExtensions);
 QueueFamilyIndices CheckQueueFamilies(const vk::PhysicalDevice& physicalDevice, const vk::UniqueSurfaceKHR& surface);
 SwapChainSupportDetails CheckSwapChainSupport(const vk::PhysicalDevice& physicalDevice, const vk::UniqueSurfaceKHR& surface);
@@ -109,41 +162,31 @@ vk::UniqueShaderModule CreateShaderModule(const vk::UniqueDevice& device, const 
 
 int main()
 {
-
-    if (!glfwInit())
-    {
-        std::cout << "Failed to initialise GLFW\n";
-        return 0;
-    }
+    Application application;
 
     Window window("Vulkan Application", 800, 600);
-    if (!window.CreateWindow())
-    {
-        std::cout << "Failed to create GLFW window\n";
-        return 0;
-    }
-
+    window.CreateWindow();
 
 
     // note: VK_KHR_get_physical_device_properties2 is required for macOS due to MoltenVK
     std::vector<const char*> instanceExtensions =
     {
-        #ifdef __APPLE__
+#ifdef __APPLE__
         "VK_KHR_get_physical_device_properties2",
-        #endif
+#endif
 
-        #ifndef NDEBUG
+#ifndef NDEBUG
         "VK_EXT_debug_utils",
-        #endif
+#endif
     };
 
 
     // note: VK_KHR_portability_subset is required for macOS due to MoltenVK
     const std::vector<const char*> deviceExtensions =
     {
-    #ifdef __APPLE__
+#ifdef __APPLE__
         "VK_KHR_portability_subset",
-    #endif
+#endif
         "VK_KHR_swapchain",
     };
 
@@ -171,7 +214,6 @@ int main()
     vk::Queue g_PresentQueue;
     vk::UniqueSwapchainKHR g_SwapChain;
 
-    // todo: Image is used for getswapchainImages, since there is no UniqueImage?
     std::vector<vk::Image> g_SwapChainImages;
     vk::Format g_SwapChainImageFormat;
     vk::Extent2D g_SwapChainExtent;
@@ -192,7 +234,7 @@ int main()
     std::vector<vk::UniqueSemaphore> imageAvailableSemaphores;
     std::vector<vk::UniqueSemaphore> renderFinishedSemaphores;
     std::vector<vk::UniqueFence> inFlightFences;
-    std::vector<vk::Fence*> imagesInFlight;
+    std::vector<vk::UniqueFence*> imagesInFlight;
 
     std::size_t currentFrame = 0;
 
@@ -232,11 +274,6 @@ int main()
     };
 
     g_Instance = vk::createInstanceUnique(instanceInfo);
-    if (!g_Instance)
-    {
-        std::cout << "Failed to create Vulkan instance\n";
-        return 0;
-    }
 
 #ifndef NDEBUG
     using SeverityFlagBit = vk::DebugUtilsMessageSeverityFlagBitsEXT;
@@ -253,22 +290,14 @@ int main()
 
     vk::DispatchLoaderDynamic dynamicLoader(g_Instance.get(), vkGetInstanceProcAddr);
     g_DebugMessenger = g_Instance->createDebugUtilsMessengerEXTUnique(debugInfo, nullptr, dynamicLoader);
-    if (!g_DebugMessenger)
-    {
-        std::cout << "Failed to create debug messenger callback\n";
-        return 0;
-    }
 #endif
 
-
-    // todo: check if there is a way to handle the surface reference
-    VkSurfaceKHR glfwSurface = {};
-    if (glfwCreateWindowSurface(g_Instance.get(), window.Get(), nullptr, &glfwSurface) != VK_SUCCESS)
+    if (glfwCreateWindowSurface(g_Instance.get(), window.Get(), nullptr, reinterpret_cast<VkSurfaceKHR*>(&g_Surface.get())) != VK_SUCCESS)
     {
         std::cout << "Failed to create Vulkan window surface\n";
         return 0;
     }
-    g_Surface = vk::UniqueSurfaceKHR(glfwSurface, g_Instance.get());
+    g_Surface = vk::UniqueSurfaceKHR(g_Surface.get(), g_Instance.get());
 
     // get the total number of GPU's that support Vulkan on the system
     std::vector<vk::PhysicalDevice> physicalDevices = g_Instance->enumeratePhysicalDevices();
@@ -350,11 +379,6 @@ int main()
     };
 
     g_Device = g_PhysicalDevice.createDeviceUnique(deviceInfo);
-    if (!g_Device)
-    {
-        std::cout << "Failed to create Vulkan device\n";
-        return 0;
-    }
 
     g_Device->getQueue(indices.graphicsFamily.value(), 0, &g_GraphicsQueue);
     g_Device->getQueue(indices.presentFamily.value(), 0, &g_PresentQueue);
@@ -416,13 +440,7 @@ int main()
         .oldSwapchain = VK_NULL_HANDLE
     };
 
-
     g_SwapChain = g_Device->createSwapchainKHRUnique(swapchainInfo);
-    if (!g_SwapChain)
-    {
-        std::cout << "Failed to create Vulkan swap chain\n";
-        return 0;
-    }
 
     g_SwapChainImages = g_Device->getSwapchainImagesKHR(g_SwapChain.get());
     g_SwapChainImageFormat = surfaceFormat.format;
@@ -449,11 +467,6 @@ int main()
         };
 
         g_SwapChainImageViews[i] = g_Device->createImageViewUnique(imageViewInfo);
-        if (!g_SwapChainImageViews[i])
-        {
-            std::cout << "Failed to create Vulkan image view\n";
-            return 0;
-        }
     }
 
 
@@ -485,8 +498,6 @@ int main()
 
     vk::SubpassDependency subpassDependency
     {
-
-        // todo: find out if subpass external has a proper enum type
         .srcSubpass = VK_SUBPASS_EXTERNAL,
         .dstSubpass = 0,
         .srcStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput,
@@ -505,26 +516,23 @@ int main()
     };
 
     g_RenderPass = g_Device->createRenderPassUnique(renderPassInfo);
-    if (!g_RenderPass)
-    {
-        std::cout << "Failed to create render pass\n";
-        return 0;
-    }
-
 
 
     // initialisation of graphics pipeline
-    std::optional<std::vector<char>> vertexShaderCode = LoadShader("../Shaders/Vert.spv");
-    std::optional<std::vector<char>> fragmentShaderCode = LoadShader("../Shaders/Frag.spv");
-
-    if (!vertexShaderCode || !fragmentShaderCode)
+    std::vector<char> vertexShaderCode;
+    std::vector<char> fragmentShaderCode;
+    try {
+        vertexShaderCode = LoadShader("../Shaders/Vert.spv");
+        fragmentShaderCode = LoadShader("../Shaders/Frag.spv");
+    } catch (std::exception& e)
     {
-        std::cout << "Failed to load vertex or fragment shader\n";
-        return 0;
+       std::cout << "Failed to load shaders\n";
+       return 0;
     }
 
-    vk::UniqueShaderModule vertexShaderModule = CreateShaderModule(g_Device, vertexShaderCode.value());
-    vk::UniqueShaderModule fragmentShaderModule = CreateShaderModule(g_Device, fragmentShaderCode.value());
+
+    vk::UniqueShaderModule vertexShaderModule = CreateShaderModule(g_Device, vertexShaderCode);
+    vk::UniqueShaderModule fragmentShaderModule = CreateShaderModule(g_Device, fragmentShaderCode);
 
     vk::PipelineShaderStageCreateInfo vertexStageInfo =
     {
@@ -631,11 +639,6 @@ int main()
     };
 
     g_PipelineLayout = g_Device->createPipelineLayoutUnique(pipelineLayoutInfo);
-    if (!g_PipelineLayout)
-    {
-        std::cout << "Failed to create pipeline layout\n";
-        return 0;
-    }
 
     vk::GraphicsPipelineCreateInfo graphicsPipelineCreateInfo =
     {
@@ -656,19 +659,10 @@ int main()
 
     };
 
+    // todo: find out why this returns a list of graphics pipelines
     g_GraphicsPipeline = g_Device->createGraphicsPipelinesUnique(nullptr, graphicsPipelineCreateInfo, nullptr).value;
 
-    if (!g_GraphicsPipeline[0])
-    {
-        std::cout << "Failed to create graphics pipeline\n";
-        return 0;
-    }
-
-
-/*    vertexShaderModule.release();
-    fragmentShaderModule.release();*/
-   /* g_Device->destroyShaderModule(vertexShaderModule.get(), nullptr);
-    g_Device->destroyShaderModule(fragmentShaderModule.get(), nullptr);*/
+    // todo: releasing shaders early results in an exception error
 
     g_SwapChainFramebuffers.resize(g_SwapChainImageViews.size());
 
@@ -687,11 +681,6 @@ int main()
         };
 
         g_SwapChainFramebuffers[i] = g_Device->createFramebufferUnique(framebufferCreateInfo, nullptr);
-        if (!g_SwapChainFramebuffers[i])
-        {
-            std::cout << "Failed to create Vulkan framebuffer\n";
-            return 0;
-        }
     }
 
 
@@ -701,11 +690,6 @@ int main()
     };
 
     g_CommandPool = g_Device->createCommandPoolUnique(commandPoolCreateInfo, nullptr);
-    if (!g_CommandPool)
-    {
-        std::cout << "Failed to created Vulkan command pool\n";
-        return 0;
-    }
 
     g_CommandBuffers.resize(g_SwapChainFramebuffers.size());
     vk::CommandBufferAllocateInfo cbAllocateInfo =
@@ -716,14 +700,6 @@ int main()
     };
 
     g_CommandBuffers = g_Device->allocateCommandBuffersUnique(cbAllocateInfo);
-
-    // todo: find out if this is needed
-    if (g_CommandBuffers.empty())
-    {
-        std::cout << "Command buffers are empty\n";
-        return 0;
-    }
-
 
     for (std::size_t i = 0; i < g_CommandBuffers.size(); ++i)
     {
@@ -769,27 +745,10 @@ int main()
     for (std::size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
     {
         imageAvailableSemaphores[i] = g_Device->createSemaphoreUnique(semaphoreCreateInfo, nullptr);
-        if (!imageAvailableSemaphores[i])
-        {
-            std::cout << "Failed to create Vulkan image semaphore\n";
-            return 0;
-        }
-
         renderFinishedSemaphores[i] = g_Device->createSemaphoreUnique(semaphoreCreateInfo, nullptr);
-        if (!renderFinishedSemaphores[i])
-        {
-            std::cout << "Failed to create Vulkan render semaphore\n";
-            return 0;
-        }
-
         inFlightFences[i] = g_Device->createFenceUnique(fenceCreateInfo, nullptr);
-        if (!inFlightFences[i])
-        {
-            std::cout << "Failed to create Vulkan in flight fence\n";
-            return 0;
-        }
-
     }
+
 
     while (!window.ShouldClose())
     {
@@ -799,14 +758,10 @@ int main()
             return 0;
         }
 
-        uint32_t imageIndex;
-        vk::Result acquireNextImageResult = g_Device->acquireNextImageKHR(
-                g_SwapChain.get(),
-                UINT64_MAX,
-                imageAvailableSemaphores[currentFrame].get(),
-                nullptr,
-                &imageIndex);
-        if (acquireNextImageResult != vk::Result::eSuccess)
+
+
+        auto [acquireImageResult, imageIndex] = g_Device->acquireNextImageKHR(g_SwapChain.get(), UINT64_MAX, imageAvailableSemaphores[currentFrame].get(), nullptr);
+        if (acquireImageResult != vk::Result::eSuccess)
         {
             std::cout << "Failed to acquire next image\n";
             return 0;
@@ -814,7 +769,8 @@ int main()
 
         if (imagesInFlight[imageIndex])
         {
-            if (g_Device->waitForFences(1, imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX) != vk::Result::eSuccess)
+
+            if (g_Device->waitForFences(imagesInFlight[imageIndex]->get(), VK_TRUE, UINT64_MAX) != vk::Result::eSuccess)
             {
                 std::cout << "Error for 'waitForFences'.\n";
                 return 0;
@@ -823,7 +779,7 @@ int main()
         }
 
 
-        imagesInFlight[imageIndex] = &inFlightFences[currentFrame].get();
+        imagesInFlight[imageIndex] = &inFlightFences[currentFrame];
 
 
 
@@ -853,11 +809,7 @@ int main()
         submitInfo.signalSemaphoreCount = signalSemaphores.size();
         submitInfo.pSignalSemaphores = signalSemaphores.data();
 
-        if (g_Device->resetFences(1, &inFlightFences[currentFrame].get()) != vk::Result::eSuccess)
-        {
-            std::cout << "Unable to reset fence\n";
-            return 0;
-        }
+        g_Device->resetFences(inFlightFences[currentFrame].get());
 
         if (g_GraphicsQueue.submit(1, &submitInfo, inFlightFences[currentFrame].get()) != vk::Result::eSuccess)
         {
@@ -892,12 +844,6 @@ int main()
 
     vkDeviceWaitIdle(g_Device.get());
 
-    // todo: terminating with uncaught exception of type std::__1::system_error: mutex lock failed: Invalid argument
-    // todo: due to vk::UniqueFence
-
-
-
-    glfwTerminate();
 
     return 0;
 }
@@ -939,12 +885,12 @@ bool CheckValidationLayerSupport(const std::vector<const char*>& validationLayer
 }
 
 
-std::optional<std::vector<char>> LoadShader(const std::string& path)
+std::vector<char> LoadShader(const std::string& path)
 {
     std::ifstream shader(path, std::ios::ate | std::ios::binary);
 
     if (!shader.is_open())
-        return {};
+        throw std::exception();
 
     size_t fileSize = (size_t) shader.tellg();
     std::vector<char> buffer(fileSize);
