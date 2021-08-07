@@ -156,7 +156,7 @@ public:
 
     [[nodiscard]] int GetHeight() const
     {
-        int width, height;
+        int width = 0, height = 0;
         glfwGetFramebufferSize(m_Window, &width, &height);
 
         return height;
@@ -848,7 +848,9 @@ public:
         presentInfo.pResults = nullptr;
 
         vk::Result presentResult = m_Present.presentKHR(&presentInfo);
-        if (presentResult == vk::Result::eErrorOutOfDateKHR || presentResult == vk::Result::eSuboptimalKHR)
+        if (presentResult == vk::Result::eErrorOutOfDateKHR ||
+            presentResult == vk::Result::eSuboptimalKHR ||
+            m_Window.IsFramebufferResized())
         {
             m_Window.IsFramebufferResized() = false;
             RecreateSwapchain();
@@ -898,6 +900,10 @@ public:
 
     void RecreateSwapchain()
     {
+        // todo: this is meant for minimisation but we get stuck in a loop which results in a big spike in usage
+       /* while (m_Window.GetWidth() == 0 || m_Window.GetHeight() == 0)
+            glfwWaitEvents();*/
+
         m_Device->waitIdle();
 
         // clean up the swapchain
