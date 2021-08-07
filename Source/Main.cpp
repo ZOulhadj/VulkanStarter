@@ -4,6 +4,7 @@
  * todo: swapchain images are not UniqueImage because the get images function only returns Image.
  * todo: need to find out more.
  */
+// todo: maybe we should not use exceptions for Vulkan?
 
 #include <iostream>
 #include <utility>
@@ -130,7 +131,7 @@ public:
 
         // we will not be using OpenGL
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-        glfwWindowHint(GLFW_RESIZABLE, false);
+        glfwWindowHint(GLFW_RESIZABLE, true);
 
         m_Window = glfwCreateWindow(m_Width, m_Height, m_Title.c_str(), nullptr, nullptr);
 
@@ -138,7 +139,7 @@ public:
             throw std::exception();
 
         glfwSetWindowUserPointer(m_Window, this);
-        //glfwSetFramebufferSizeCallback(m_Window, FramebufferResizeCallback);
+        glfwSetFramebufferSizeCallback(m_Window, FramebufferResizeCallback);
 
     }
 
@@ -218,7 +219,6 @@ private:
     vk::UniqueRenderPass m_RenderPass;
     vk::UniquePipelineLayout m_PipelineLayout;
 
-    // dynamic viewports
     std::vector<vk::DynamicState> m_DynamicStates;
 
     // todo: find out why this is a vector
@@ -291,7 +291,7 @@ public:
 
     void CreateSurface()
     {
-        assert(!m_Surface);
+       // assert(!m_Surface);
 
         if (glfwCreateWindowSurface(m_Instance.get(), m_Window.Get(), nullptr, reinterpret_cast<VkSurfaceKHR*>(&m_Surface.get())) != VK_SUCCESS)
         {
@@ -304,7 +304,7 @@ public:
 
     void SelectPhysicalDevice()
     {
-        assert(!m_PhysicalDevice);
+        //assert(!m_PhysicalDevice);
 
         // get the total number of GPU's that support Vulkan on the system
         std::vector<vk::PhysicalDevice> physicalDevices = m_Instance->enumeratePhysicalDevices();
@@ -314,41 +314,33 @@ public:
             throw std::exception();
         }
 
-        std::vector<std::size_t> discreteDevicePositions, integratedDevicePositions;
-        for (std::size_t i = 0; i < physicalDevices.size(); ++i)
+        // todo: for simplicity we will just use the first GPU found
+        m_PhysicalDevice = physicalDevices[0];
+
+        // check if physical device supports required device extensions
+        if (!IsRequiredDeviceExtensionsFound(m_PhysicalDevice))
         {
-            // check if physical device supports required device extensions
-            if (!IsRequiredDeviceExtensionsFound(physicalDevices[i]))
-            {
-                std::cout << "GPU does not support required device extensions\n";
-                throw std::exception();
-            }
-
-            // check if physical device supports required queue families
-            m_QueueFamilies = CheckQueueFamilies(physicalDevices[i]);
-            if (!m_QueueFamilies)
-                continue;
-
-            // check if the physical device support the swpachain formats // todo: more info
-            m_SwapchainSupport = CheckSwapChainSupport(physicalDevices[i]);
-            bool swapChainAdequate = !m_SwapchainSupport.formats.empty() && !m_SwapchainSupport.presentModes.empty();
-
-            if (!swapChainAdequate)
-                continue;
-
-            // find out what type of GPU it is and save its position index
-            vk::PhysicalDeviceProperties physicalDeviceProperties = physicalDevices[i].getProperties();
-            if (physicalDeviceProperties.deviceType == vk::PhysicalDeviceType::eDiscreteGpu)
-                discreteDevicePositions.push_back(i);
-            else if (physicalDeviceProperties.deviceType == vk::PhysicalDeviceType::eIntegratedGpu)
-                integratedDevicePositions.push_back(i);
+            std::cout << "GPU does not support required device extensions\n";
+            throw std::exception();
         }
 
-        // If the system has a compatible discrete GPU then use that else use an intergrated GPU
-        if (!discreteDevicePositions.empty())
-            m_PhysicalDevice = physicalDevices[discreteDevicePositions[0]];
-        else if (!integratedDevicePositions.empty())
-            m_PhysicalDevice = physicalDevices[integratedDevicePositions[0]];
+        // check if physical device supports required queue families
+        m_QueueFamilies = CheckQueueFamilies(m_PhysicalDevice);
+        if (!m_QueueFamilies)
+        {
+            std::cout << "GPU does not support required queue families\n";
+            throw std::exception();
+        }
+
+        // check if the physical device support the swpachain formats // todo: more info
+        m_SwapchainSupport = CheckSwapChainSupport(m_PhysicalDevice);
+        bool swapChainAdequate = !m_SwapchainSupport.formats.empty() && !m_SwapchainSupport.presentModes.empty();
+
+        if (!swapChainAdequate)
+        {
+            std::cout << "GPU does not support swapchain format\n";
+            throw std::exception();
+        }
 
         if (!m_PhysicalDevice)
         {
@@ -359,9 +351,11 @@ public:
 
     void CreateDevice()
     {
-        assert(!m_Device);
+        //assert(!m_Device);
 
         std::vector<vk::DeviceQueueCreateInfo> deviceQueueInfos;
+
+        // todo: why does using an array here cause an error when not when using a set?
         std::set<uint32_t> uniqueQueueFamilies =
         {
             m_QueueFamilies.graphicsFamily.value(),
@@ -369,7 +363,7 @@ public:
         };
 
         float queuePriority = 1.0f;
-        for (uint32_t queueFamily : uniqueQueueFamilies)
+        for (const auto& queueFamily : uniqueQueueFamilies)
         {
             vk::DeviceQueueCreateInfo deviceQueueInfo =
             {
@@ -402,7 +396,7 @@ public:
 
     void CreateSwapchain()
     {
-        assert(!m_Swapchain);
+        //assert(!m_Swapchain);
 
         m_SwapchainSurfaceFormat = SelectSwapChainSurfaceFormat(m_SwapchainSupport.formats);
         m_SwapchainPresentMode = SelectSwapChainPresentMode(m_SwapchainSupport.presentModes);
@@ -461,7 +455,7 @@ public:
 
     void CreateSwapchainImageViews()
     {
-        assert(m_SwapchainImages.empty());
+        //assert(m_SwapchainImages.empty());
 
         m_SwapchainImages = m_Device->getSwapchainImagesKHR(m_Swapchain.get());
         m_SwapchainImageFormat = m_SwapchainSurfaceFormat.format;
@@ -490,7 +484,7 @@ public:
 
     void CreateRenderPass()
     {
-        assert(!m_RenderPass);
+        //assert(!m_RenderPass);
 
         vk::AttachmentDescription attachmentDescription
         {
@@ -541,7 +535,7 @@ public:
 
     void CreateGraphicsPipelineLayout()
     {
-        assert(!m_PipelineLayout);
+        //assert(!m_PipelineLayout);
 
         vk::PipelineLayoutCreateInfo pipelineLayoutInfo =
         {
@@ -554,7 +548,7 @@ public:
 
     void CreateGraphicsPipeline()
     {
-        assert(m_Pipeline.empty());
+        //assert(m_Pipeline.empty());
 
         std::vector<char> vertexShaderCode;
         std::vector<char> fragmentShaderCode;
@@ -598,7 +592,6 @@ public:
             .topology = vk::PrimitiveTopology::eTriangleList,
             .primitiveRestartEnable = VK_FALSE
         };
-
 
         vk::PipelineViewportStateCreateInfo viewportState =
         {
@@ -683,7 +676,7 @@ public:
 
     void CreateFramebuffers()
     {
-        assert(m_Framebuffers.empty());
+        //assert(m_Framebuffers.empty());
 
         for (auto& swapchainImage : m_SwapchainImageViews)
         {
@@ -704,7 +697,8 @@ public:
 
     void CreateCommandPool()
     {
-        assert(!m_CommandPool);
+        // todo: no need to destory command pool. Double check
+        //assert(!m_CommandPool);
 
         vk::CommandPoolCreateInfo commandPoolCreateInfo =
         {
@@ -716,7 +710,7 @@ public:
 
     void AllocateCommandBuffers()
     {
-        assert(m_CommandBuffers.empty());
+        //assert(m_CommandBuffers.empty());
 
         vk::CommandBufferAllocateInfo cbAllocateInfo =
         {
@@ -730,7 +724,7 @@ public:
 
     void RecordCommandBuffer()
     {
-        assert(!m_CommandBuffers.empty());
+        //assert(!m_CommandBuffers.empty());
 
         int index = 0;
         for (auto& commandBuffer : m_CommandBuffers)
@@ -743,7 +737,7 @@ public:
                 throw std::exception();
             }
 
-            vk::ClearValue clearColor(std::array<float, 4>{ 0.0f, 0.0f, 0.0f, 1.0f });
+            vk::ClearValue clearColor(std::array<float, 4>({ 0.04f, 0.04f, 0.04f, 1.0f }));
 
             vk::RenderPassBeginInfo renderPassBeginInfo =
             {
@@ -753,6 +747,10 @@ public:
                 .clearValueCount = 1,
                 .pClearValues = &clearColor
             };
+
+
+
+
 
             commandBuffer->beginRenderPass(&renderPassBeginInfo, vk::SubpassContents::eInline);
 
@@ -789,7 +787,7 @@ public:
 
     void CreateSemaphores()
     {
-        assert(m_ImageAvailableSemaphores.empty() && m_RenderFinishedSemaphores.empty());
+        //assert(m_ImageAvailableSemaphores.empty() && m_RenderFinishedSemaphores.empty());
 
         vk::SemaphoreCreateInfo semaphoreCreateInfo = {};
         for (std::size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
@@ -801,7 +799,7 @@ public:
 
     void CreateFences()
     {
-        assert(m_InFlightFences.empty());
+        //assert(m_InFlightFences.empty());
 
         vk::FenceCreateInfo fenceCreateInfo =
         {
@@ -830,17 +828,25 @@ public:
     void AcquireNextImage()
     {
         auto [acquireImageResult, imageIndex] = m_Device->acquireNextImageKHR(m_Swapchain.get(), UINT64_MAX, m_ImageAvailableSemaphores[m_CurrentFrame].get(), nullptr);
-/*
-        if (acquireImageResult == vk::Result::eErrorOutOfDateKHR)
+
+        switch (acquireImageResult)
         {
-            //RecreateSwapchain();
-            return;
+            case vk::Result::eErrorOutOfDateKHR:
+            {
+                RecreateSwapchain();
+            } break;
+            case vk::Result::eSuboptimalKHR:
+            {
+                // not the best swapchain case however, presentation engine is still able to render
+            } break;
+            case vk::Result::eErrorSurfaceLostKHR:
+            {
+                // todo: will need to destroy and then create a new surface
+                // todo: might need to also recreate the swapchain
+            } break;
+            default:
+                break;
         }
-        else if (acquireImageResult != vk::Result::eSuccess && acquireImageResult != vk::Result::eSuboptimalKHR)
-        {
-            std::cout << "Failed to acquire next image\n";
-            throw std::exception();
-        }*/
 
         if (m_ImagesInFlight[imageIndex])
         {
@@ -852,7 +858,7 @@ public:
             }
 
         }
-        
+
         m_ImagesInFlight[imageIndex] = &m_InFlightFences[m_CurrentFrame];
         
         
@@ -906,12 +912,26 @@ public:
         presentInfo.pResults = nullptr;
 
         vk::Result presentResult = m_Present.presentKHR(&presentInfo);
-      /*  if (presentResult == vk::Result::eErrorOutOfDateKHR ||
-            presentResult == vk::Result::eSuboptimalKHR ||
-            m_Window.IsFramebufferResized())
+        switch (presentResult)
         {
+            case vk::Result::eErrorOutOfDateKHR:
+            case vk::Result::eSuboptimalKHR:
+            {
+                RecreateSwapchain();
+            } break;
+            case vk::Result::eErrorSurfaceLostKHR:
+            {
+                // todo: will need to destroy and then create a new surface
+                // todo: might need to also recreate the swapchain
+            } break;
+            default:
+                break;
+        }
+        if (presentResult == vk::Result::eErrorOutOfDateKHR || presentResult == vk::Result::eSuboptimalKHR)
+        {
+            std::cout << "present recreate\n";
             m_Window.IsFramebufferResized() = false;
-            //RecreateSwapchain();
+            RecreateSwapchain();
 
         }
         else if (presentResult != vk::Result::eSuccess)
@@ -919,7 +939,6 @@ public:
             std::cout << "Unable to present\n";
             throw std::exception();
         }
-*/
 
         m_CurrentFrame = (m_CurrentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 
@@ -953,18 +972,17 @@ public:
         m_Framebuffers.clear();
         m_CommandBuffers.clear();
         m_SwapchainImageViews.clear();
-
     }
 
     void RecreateSwapchain()
     {
+        //std::cout << "Window resized and swapchain should be recreated\n";
         // todo: this is meant for minimisation but we get stuck in a loop which results in a big spike in usage
        /* while (m_Window.GetWidth() == 0 || m_Window.GetHeight() == 0)
             glfwWaitEvents();*/
 
         m_Device->waitIdle();
 
-        // clean up the swapchain
         CleanUpSwapchain();
 
         CreateSwapchain();
@@ -1041,7 +1059,7 @@ int main()
 {
     Application application;
 
-    Window window("Vulkan Application", 800, 600);
+    Window window("Vulkan Application", 400, 400);
     window.CreateWindow();
 
     VulkanRendererInfo rendererInfo
