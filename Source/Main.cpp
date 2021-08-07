@@ -111,6 +111,8 @@ private:
     GLFWwindow* m_Window;
     std::string m_Title;
     int m_Width, m_Height;
+
+    bool m_FramebufferResized = false;
 public:
     Window(std::string title, int width, int height)
         : m_Window(nullptr), m_Width(width), m_Height(height), m_Title(std::move(title))
@@ -129,12 +131,16 @@ public:
 
         // we will not be using OpenGL
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-        glfwWindowHint(GLFW_RESIZABLE, false);
+        //glfwWindowHint(GLFW_RESIZABLE, false);
 
         m_Window = glfwCreateWindow(m_Width, m_Height, m_Title.c_str(), nullptr, nullptr);
 
         if (!m_Window)
             throw std::exception();
+
+        glfwSetWindowUserPointer(m_Window, this);
+        glfwSetFramebufferSizeCallback(m_Window, FramebufferResizeCallback);
+
     }
 
     [[nodiscard]] bool ShouldClose() const { return glfwWindowShouldClose(m_Window); }
@@ -156,6 +162,13 @@ public:
         return height;
     }
 
+    bool& IsFramebufferResized() { return m_FramebufferResized; }
+private:
+    static void FramebufferResizeCallback(GLFWwindow* window, int width, int height)
+    {
+        auto win = reinterpret_cast<Window*>(glfwGetWindowUserPointer(window));
+        win->m_FramebufferResized = true;
+    }
 };
 
 
@@ -174,6 +187,8 @@ struct VulkanRendererInfo
 class VulkanRenderer
 {
 private:
+    Window& m_Window;
+
     VulkanRendererInfo m_RendererInfo;
 
     vk::UniqueInstance m_Instance;
@@ -208,7 +223,7 @@ private:
 
     const int MAX_FRAMES_IN_FLIGHT = 2;
     std::size_t m_CurrentFrame = 0;
-    
+
     std::vector<vk::UniqueSemaphore> m_ImageAvailableSemaphores;
     std::vector<vk::UniqueSemaphore> m_RenderFinishedSemaphores;
     std::vector<vk::UniqueFence> m_InFlightFences;
@@ -216,8 +231,8 @@ private:
     std::vector<vk::UniqueFence*> m_ImagesInFlight;
 public:
     // todo: find out what explicit does here
-    explicit VulkanRenderer(VulkanRendererInfo vulkanRendererInfo)
-        : m_RendererInfo(std::move(vulkanRendererInfo))
+    explicit VulkanRenderer(VulkanRendererInfo vulkanRendererInfo, Window& window)
+        : m_RendererInfo(std::move(vulkanRendererInfo)), m_Window(window)
     {
 
     }
@@ -266,9 +281,9 @@ public:
         m_Instance = vk::createInstanceUnique(instanceInfo);
     }
 
-    void CreateSurface(GLFWwindow* window)
+    void CreateSurface()
     {
-        if (glfwCreateWindowSurface(m_Instance.get(), window, nullptr, reinterpret_cast<VkSurfaceKHR*>(&m_Surface.get())) != VK_SUCCESS)
+        if (glfwCreateWindowSurface(m_Instance.get(), m_Window.Get(), nullptr, reinterpret_cast<VkSurfaceKHR*>(&m_Surface.get())) != VK_SUCCESS)
         {
             std::cout << "Failed to create Vulkan window surface\n";
             throw std::exception();
@@ -365,12 +380,12 @@ public:
         m_Device->getQueue(indices.presentFamily.value(), 0, &m_Present);
     }
 
-    void CreateSwapchain(int width, int height)
+    void CreateSwapchain()
     {
         m_SwapchainSupport = CheckSwapChainSupport(m_PhysicalDevice, m_Surface);
         m_SwapchainSurfaceFormat = SelectSwapChainSurfaceFormat(m_SwapchainSupport.formats);
         m_SwapchainPresentMode = SelectSwapChainPresentMode(m_SwapchainSupport.presentModes);
-        m_SwapchainExtent = SelectSwapChainExtent(width, height, m_SwapchainSupport.capabilities);
+        m_SwapchainExtent = SelectSwapChainExtent(m_Window.GetWidth(), m_Window.GetHeight(), m_SwapchainSupport.capabilities);
 
         uint32_t imageCount = m_SwapchainSupport.capabilities.minImageCount + 1;
         if (m_SwapchainSupport.capabilities.maxImageCount > 0 && imageCount > m_SwapchainSupport.capabilities.maxImageCount)
@@ -757,7 +772,13 @@ public:
     void AcquireNextImage()
     {
         auto [acquireImageResult, imageIndex] = m_Device->acquireNextImageKHR(m_Swapchain.get(), UINT64_MAX, m_ImageAvailableSemaphores[m_CurrentFrame].get(), nullptr);
-        if (acquireImageResult != vk::Result::eSuccess)
+
+        if (acquireImageResult == vk::Result::eErrorOutOfDateKHR)
+        {
+            RecreateSwapchain();
+            return;
+        }
+        else if (acquireImageResult != vk::Result::eSuccess && acquireImageResult != vk::Result::eSuboptimalKHR)
         {
             std::cout << "Failed to acquire next image\n";
             throw std::exception();
@@ -826,7 +847,14 @@ public:
         presentInfo.pImageIndices = &imageIndex;
         presentInfo.pResults = nullptr;
 
-        if (m_Present.presentKHR(&presentInfo) != vk::Result::eSuccess)
+        vk::Result presentResult = m_Present.presentKHR(&presentInfo);
+        if (presentResult == vk::Result::eErrorOutOfDateKHR || presentResult == vk::Result::eSuboptimalKHR)
+        {
+            m_Window.IsFramebufferResized() = false;
+            RecreateSwapchain();
+
+        }
+        else if (presentResult != vk::Result::eSuccess)
         {
             std::cout << "Unable to present\n";
             throw std::exception();
@@ -842,6 +870,49 @@ public:
         m_Device->waitIdle();
     }
 
+    void CleanUpSwapchain()
+    {
+        for (auto& framebuffer : m_Framebuffers)
+            framebuffer.release();
+
+        for (auto& commandBuffer : m_CommandBuffers)
+            commandBuffer.release();
+
+        m_Pipeline[0].release();
+
+        m_PipelineLayout.release();
+        m_RenderPass.release();
+
+        for (auto& imageView : m_SwapchainImageViews)
+            imageView.release();
+
+        m_Swapchain.release();
+
+
+        // todo: clear lists
+        m_Framebuffers.clear();
+        m_CommandBuffers.clear();
+        m_SwapchainImageViews.clear();
+
+    }
+
+    void RecreateSwapchain()
+    {
+        m_Device->waitIdle();
+
+        // clean up the swapchain
+        CleanUpSwapchain();
+
+        CreateSwapchain();
+        CreateSwapchainImageViews();
+        CreateRenderPass();
+        CreateGraphicsPipelineLayout(); // todo: check if this is actually used
+        CreateGraphicsPipeline();
+        CreateFramebuffers();
+        CreateCommandPool();
+        AllocateCommandBuffers();
+        RecordCommandBuffer();
+    }
 };
 
 int main()
@@ -860,7 +931,7 @@ int main()
         .rendererVersion = VK_API_VERSION_1_0
     };
 
-    VulkanRenderer vulkanRenderer(rendererInfo);
+    VulkanRenderer vulkanRenderer(rendererInfo, window);
 
     uint32_t glfwExtensionCount = 0;
     const char** glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
@@ -879,10 +950,10 @@ int main()
     }
 #endif
 
-    vulkanRenderer.CreateSurface(window.Get());
+    vulkanRenderer.CreateSurface();
     vulkanRenderer.SelectPhysicalDevice();
     vulkanRenderer.CreateDevice();
-    vulkanRenderer.CreateSwapchain(window.GetWidth(), window.GetHeight());
+    vulkanRenderer.CreateSwapchain();
     vulkanRenderer.CreateSwapchainImageViews();
     vulkanRenderer.CreateRenderPass();
     vulkanRenderer.CreateGraphicsPipelineLayout();
