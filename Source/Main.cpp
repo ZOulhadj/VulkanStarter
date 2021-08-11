@@ -4,7 +4,7 @@
  * todo: swapchain images are not UniqueImage because the get images function only returns Image.
  * todo: need to find out more.
  */
-// todo: maybe we should not use exceptions for Vulkan?
+// todo: maybe we should not use exceptions for Vulkan? for speed?
 
 #include <iostream>
 #include <utility>
@@ -16,6 +16,7 @@
 #include <exception>
 #include <memory>
 
+//#define VULKAN_HPP_NO_EXCEPTIONS
 #define VULKAN_HPP_NO_CONSTRUCTORS
 #define VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
 #include <vulkan/vulkan.hpp>
@@ -287,11 +288,10 @@ public:
         using SeverityFlagBit = vk::DebugUtilsMessageSeverityFlagBitsEXT;
         using TypeFlagBit = vk::DebugUtilsMessageTypeFlagBitsEXT;
 
-        // note: TypeFlagBit::eGeneral was used here before
         vk::DebugUtilsMessengerCreateInfoEXT debugInfo
         {
             .messageSeverity = SeverityFlagBit::eVerbose | SeverityFlagBit::eWarning | SeverityFlagBit::eError,
-            .messageType = TypeFlagBit::eValidation | TypeFlagBit::ePerformance,
+            .messageType = TypeFlagBit::eGeneral | TypeFlagBit::eValidation | TypeFlagBit::ePerformance,
             .pfnUserCallback = reinterpret_cast<PFN_vkDebugUtilsMessengerCallbackEXT>(DebugMessageCallback),
             .pUserData = nullptr
         };
