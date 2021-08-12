@@ -115,7 +115,7 @@ public:
 
         glfwSetWindowUserPointer(m_Window, this);
         glfwSetFramebufferSizeCallback(m_Window, FramebufferResizeCallback);
-
+        glfwSetKeyCallback(m_Window, KeyCallback);
     }
 
     void Update() const
@@ -140,6 +140,8 @@ public:
         return height;
     }
 
+    [[nodiscard]] bool ShouldClose() const { return glfwWindowShouldClose(m_Window); }
+
     bool& IsFramebufferResized() { return m_FramebufferResized; }
 private:
     static void FramebufferResizeCallback(GLFWwindow* window, int width, int height)
@@ -147,6 +149,13 @@ private:
         auto win = reinterpret_cast<Window*>(glfwGetWindowUserPointer(window));
         win->m_FramebufferResized = true;
     }
+
+    static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
+    {
+        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+            glfwSetWindowShouldClose(window, true);
+    }
+
 };
 
 
@@ -279,6 +288,8 @@ public:
 #ifndef NDEBUG
     void CreateDebugLayer()
     {
+        assert(m_Instance);
+
         if (!CheckValidationLayerSupport(g_ValidationLayers))
         {
             std::cout << "Required Vulkan validation layers not found\n";
@@ -908,7 +919,7 @@ private:
     }
 
 
-    bool CheckValidationLayerSupport(const std::vector<const char *> &validationLayers)
+    static bool CheckValidationLayerSupport(const std::vector<const char *> &validationLayers)
     {
         std::vector<vk::LayerProperties> availableLayers = vk::enumerateInstanceLayerProperties();
 
@@ -1209,7 +1220,7 @@ public:
         Update();
     }
 
-    void Update() const
+    void Update()
     {
         while (m_Running)
         {
@@ -1220,6 +1231,10 @@ public:
             m_Renderer->PresentFrame();
 
             m_Window->Update();
+
+            // todo: maybe implement events for this
+            if (m_Window->ShouldClose())
+                m_Running = false;
 
         }
 
